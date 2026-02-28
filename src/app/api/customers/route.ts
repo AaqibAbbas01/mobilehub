@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getProfileId } from "@/lib/profile";
 
 // GET all customers with stats
 export async function GET(request: NextRequest) {
@@ -12,11 +13,17 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "50");
     const offset = parseInt(searchParams.get("offset") || "0");
 
+    const profileId = getProfileId(request);
+
     let query = supabase
       .from("customers")
       .select("*", { count: "exact" })
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
+
+    if (profileId) {
+      query = query.eq("profile_id", profileId);
+    }
 
     if (search) {
       query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`);
@@ -34,7 +41,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Calculate stats
-    const allCustomers = await supabase.from("customers").select("status, total_spent");
+    let statsQuery = supabase.from("customers").select("status, total_spent");
+    if (profileId) statsQuery = statsQuery.eq("profile_id", profileId);
+    const allCustomers = await statsQuery;
     const customersData = allCustomers.data || [];
     
     const stats = {
@@ -68,6 +77,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     const { name, email, phone, whatsapp_number, address, city, status, notes, custom_data } = body;
+    const profileId = getProfileId(request);
 
     if (!name || !phone) {
       return NextResponse.json(
@@ -76,7 +86,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const customerData = {
+    const customerData: Record<string, unknown> = {
       name,
       email: email || null,
       phone,
@@ -86,6 +96,7 @@ export async function POST(request: NextRequest) {
       status: status || "new",
       notes: notes || null,
       custom_data: custom_data || {},
+      ...(profileId ? { profile_id: profileId } : {}),
     };
 
     const { data, error } = await supabase

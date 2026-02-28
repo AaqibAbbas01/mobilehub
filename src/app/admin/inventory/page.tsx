@@ -9,9 +9,6 @@ import {
   Edit,
   Trash2,
   Eye,
-  Download,
-  Upload,
-  Smartphone,
   Package,
   AlertCircle,
   TrendingUp,
@@ -34,10 +31,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { formatPrice, POPULAR_BRANDS } from "@/lib/utils";
+import { formatPrice } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
+import { useBusiness } from "@/contexts/BusinessContext";
 
-interface PhoneItem {
+interface InventoryItem {
   id: string;
   brand: string;
   model_name: string;
@@ -53,104 +51,96 @@ interface PhoneItem {
   created_at: string;
 }
 
-const conditionLabels: Record<string, string> = {
-  "A+": "Like New",
-  "A": "Excellent",
-  "B+": "Very Good",
-  "B": "Good",
-  "C": "Fair",
-  "D": "Acceptable",
-};
-
 const statusConfig: Record<string, { label: string; color: string }> = {
-  Available: { label: "In Stock", color: "bg-green-500/20 text-green-500" },
-  Reserved: { label: "Reserved", color: "bg-yellow-500/20 text-yellow-500" },
-  Sold: { label: "Sold", color: "bg-gray-500/20 text-gray-500" },
-  "Under Repair": { label: "Repair", color: "bg-orange-500/20 text-orange-500" },
-  "Quality Check": { label: "QC", color: "bg-blue-500/20 text-blue-500" },
+  Available:      { label: "In Stock",  color: "bg-green-500/20 text-green-500" },
+  Reserved:       { label: "Reserved",  color: "bg-yellow-500/20 text-yellow-500" },
+  Sold:           { label: "Sold",      color: "bg-gray-500/20 text-gray-500" },
+  "Under Repair": { label: "Repair",    color: "bg-orange-500/20 text-orange-500" },
+  "Quality Check":{ label: "QC",        color: "bg-blue-500/20 text-blue-500" },
+  "Listed Online":{ label: "Listed",    color: "bg-cyan-500/20 text-cyan-500" },
 };
 
 export default function InventoryPage() {
-  const [phones, setPhones] = useState<PhoneItem[]>([]);
+  const biz = useBusiness();
+  const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedBrand, setSelectedBrand] = useState("all");
+  const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedStatus, setSelectedStatus] = useState("all");
-  const [stats, setStats] = useState({
-    total: 0,
-    inStock: 0,
-    lowStock: 0,
-    outOfStock: 0,
-  });
 
-  useEffect(() => {
-    fetchPhones();
-  }, []);
+  useEffect(() => { fetchItems(); }, []);
 
-  const fetchPhones = async () => {
+  const fetchItems = async () => {
     try {
       setLoading(true);
       const supabase = createClient();
-      
       const { data, error } = await supabase
         .from("phones")
         .select("*")
         .order("created_at", { ascending: false });
-
       if (error) throw error;
-      
-      const phonesList = data || [];
-      setPhones(phonesList);
-      
-      // Calculate stats
-      const available = phonesList.filter(p => p.status === "Available").length;
-      const sold = phonesList.filter(p => p.status === "Sold").length;
-      
-      setStats({
-        total: phonesList.length,
-        inStock: available,
-        lowStock: 0, // Would need quantity field
-        outOfStock: sold,
-      });
+      setItems(data || []);
     } catch (err) {
-      console.error("Error fetching phones:", err);
+      console.error("Error fetching inventory:", err);
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this phone?")) return;
-    
+    if (!confirm(`Are you sure you want to delete this ${biz.product_name_singular.toLowerCase()}?`)) return;
     try {
       const supabase = createClient();
-      const { error } = await supabase
-        .from("phones")
-        .delete()
-        .eq("id", id);
-      
+      const { error } = await supabase.from("phones").delete().eq("id", id);
       if (error) throw error;
-      
-      setPhones(phones.filter(p => p.id !== id));
+      setItems((prev) => prev.filter((p) => p.id !== id));
     } catch (err) {
-      console.error("Error deleting phone:", err);
-      alert("Failed to delete phone");
+      console.error("Error deleting item:", err);
+      alert(`Failed to delete ${biz.product_name_singular.toLowerCase()}`);
     }
   };
 
-  const filteredPhones = phones.filter((phone) => {
-    const matchesSearch = phone.model_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         phone.brand.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesBrand = selectedBrand === "all" || phone.brand === selectedBrand;
-    const matchesStatus = selectedStatus === "all" || phone.status === selectedStatus;
-    return matchesSearch && matchesBrand && matchesStatus;
+  const filteredItems = items.filter((item) => {
+    const search = searchQuery.toLowerCase();
+    const matchesSearch =
+      item.model_name.toLowerCase().includes(search) ||
+      item.brand.toLowerCase().includes(search);
+    const matchesCategory = selectedCategory === "all" || item.brand === selectedCategory;
+    const matchesStatus = selectedStatus === "all" || item.status === selectedStatus;
+    return matchesSearch && matchesCategory && matchesStatus;
   });
 
+  // Dynamic condition labels from biz config
+  const conditionLabel = (grade: string) =>
+    (biz.condition_labels as Record<string, string>)?.[grade] || grade;
+
+  const categories = (biz.primary_categories as string[]) || [];
+
   const statsData = [
-    { label: "Total Products", value: stats.total.toString(), icon: Package, color: "from-blue-500 to-cyan-600" },
-    { label: "In Stock", value: stats.inStock.toString(), icon: Smartphone, color: "from-green-500 to-emerald-600" },
-    { label: "Reserved/QC", value: phones.filter(p => p.status === "Reserved" || p.status === "Quality Check").length.toString(), icon: AlertCircle, color: "from-yellow-500 to-orange-600" },
-    { label: "Sold", value: stats.outOfStock.toString(), icon: TrendingUp, color: "from-purple-500 to-pink-600" },
+    {
+      label: `Total ${biz.product_name_plural}`,
+      value: items.length,
+      icon: Package,
+      color: "from-blue-500 to-cyan-600",
+    },
+    {
+      label: "In Stock",
+      value: items.filter((p) => p.status === "Available").length,
+      icon: Package,
+      color: "from-green-500 to-emerald-600",
+    },
+    {
+      label: "Reserved / QC",
+      value: items.filter((p) => p.status === "Reserved" || p.status === "Quality Check").length,
+      icon: AlertCircle,
+      color: "from-yellow-500 to-orange-600",
+    },
+    {
+      label: "Sold",
+      value: items.filter((p) => p.status === "Sold").length,
+      icon: TrendingUp,
+      color: "from-purple-500 to-pink-600",
+    },
   ];
 
   return (
@@ -158,13 +148,13 @@ export default function InventoryPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Inventory</h1>
-          <p className="text-gray-500 mt-1">Manage your phone inventory</p>
+          <h1 className="text-3xl font-bold">{biz.product_name_plural}</h1>
+          <p className="text-gray-500 mt-1">Manage your {biz.product_name_plural.toLowerCase()} inventory</p>
         </div>
         <div className="flex items-center gap-3">
-          <Button 
-            variant="outline" 
-            onClick={fetchPhones}
+          <Button
+            variant="outline"
+            onClick={fetchItems}
             className="border-gray-800 bg-white/5 hover:bg-white/10 rounded-xl"
           >
             <RefreshCw className="w-4 h-4 mr-2" />
@@ -173,7 +163,7 @@ export default function InventoryPage() {
           <Link href="/admin/inventory/new">
             <Button className="bg-gradient-to-r from-orange-500 to-red-600 border-0 rounded-xl">
               <Plus className="w-4 h-4 mr-2" />
-              Add Phone
+              Add {biz.product_name_singular}
             </Button>
           </Link>
         </div>
@@ -200,20 +190,20 @@ export default function InventoryPage() {
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
             <Input
-              placeholder="Search inventory..."
+              placeholder={`Search ${biz.product_name_plural.toLowerCase()}…`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 bg-white/5 border-gray-800 rounded-xl"
             />
           </div>
-          <Select value={selectedBrand} onValueChange={setSelectedBrand}>
-            <SelectTrigger className="w-full md:w-40 bg-white/5 border-gray-800 rounded-xl">
-              <SelectValue placeholder="All Brands" />
+          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <SelectTrigger className="w-full md:w-44 bg-white/5 border-gray-800 rounded-xl">
+              <SelectValue placeholder={`All ${biz.category_label}s`} />
             </SelectTrigger>
             <SelectContent className="bg-gray-900 border-gray-800">
-              <SelectItem value="all">All Brands</SelectItem>
-              {POPULAR_BRANDS.map((brand) => (
-                <SelectItem key={brand} value={brand}>{brand}</SelectItem>
+              <SelectItem value="all">All {biz.category_label}s</SelectItem>
+              {categories.map((cat) => (
+                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -223,11 +213,9 @@ export default function InventoryPage() {
             </SelectTrigger>
             <SelectContent className="bg-gray-900 border-gray-800">
               <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="Available">Available</SelectItem>
-              <SelectItem value="Reserved">Reserved</SelectItem>
-              <SelectItem value="Sold">Sold</SelectItem>
-              <SelectItem value="Under Repair">Under Repair</SelectItem>
-              <SelectItem value="Quality Check">Quality Check</SelectItem>
+              {((biz.inventory_statuses as string[]) || Object.keys(statusConfig)).map((s) => (
+                <SelectItem key={s} value={s}>{s}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -239,15 +227,15 @@ export default function InventoryPage() {
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-orange-500" />
           </div>
-        ) : filteredPhones.length === 0 ? (
+        ) : filteredItems.length === 0 ? (
           <div className="text-center py-20">
             <Package className="w-16 h-16 mx-auto text-gray-600 mb-4" />
-            <h3 className="text-xl font-semibold mb-2">No phones in inventory</h3>
-            <p className="text-gray-500 mb-4">Add your first phone to get started</p>
+            <h3 className="text-xl font-semibold mb-2">No {biz.product_name_plural.toLowerCase()} in inventory</h3>
+            <p className="text-gray-500 mb-4">Add your first {biz.product_name_singular.toLowerCase()} to get started</p>
             <Link href="/admin/inventory/new">
               <Button className="btn-futuristic rounded-xl">
                 <Plus className="w-4 h-4 mr-2" />
-                Add Phone
+                Add {biz.product_name_singular}
               </Button>
             </Link>
           </div>
@@ -256,9 +244,14 @@ export default function InventoryPage() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-800">
-                  <th className="text-left p-4 text-sm font-medium text-gray-500">Phone</th>
-                  <th className="text-left p-4 text-sm font-medium text-gray-500">Brand</th>
-                  <th className="text-left p-4 text-sm font-medium text-gray-500">Condition</th>
+                  <th className="text-left p-4 text-sm font-medium text-gray-500">{biz.product_name_singular}</th>
+                  <th className="text-left p-4 text-sm font-medium text-gray-500">{biz.category_label}</th>
+                  {biz.use_condition_grades && (
+                    <th className="text-left p-4 text-sm font-medium text-gray-500">Condition</th>
+                  )}
+                  {biz.use_battery_health && (
+                    <th className="text-left p-4 text-sm font-medium text-gray-500">Battery</th>
+                  )}
                   <th className="text-left p-4 text-sm font-medium text-gray-500">Price</th>
                   <th className="text-left p-4 text-sm font-medium text-gray-500">Cost</th>
                   <th className="text-left p-4 text-sm font-medium text-gray-500">Profit</th>
@@ -267,34 +260,45 @@ export default function InventoryPage() {
                 </tr>
               </thead>
               <tbody>
-                {filteredPhones.map((phone) => {
-                  const price = phone.selling_price;
-                  const cost = phone.cost_price;
+                {filteredItems.map((item) => {
+                  const price = item.selling_price;
+                  const cost = item.cost_price;
                   const profit = price - cost;
-                  const status = statusConfig[phone.status] || { label: phone.status, color: "bg-gray-500/20 text-gray-500" };
-                  const condition = conditionLabels[phone.condition_grade] || phone.condition_grade;
+                  const status = statusConfig[item.status] || { label: item.status, color: "bg-gray-500/20 text-gray-500" };
 
                   return (
-                    <tr key={phone.id} className="border-b border-gray-800/50 hover:bg-white/5 transition-colors">
+                    <tr key={item.id} className="border-b border-gray-800/50 hover:bg-white/5 transition-colors">
                       <td className="p-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center overflow-hidden">
-                            {phone.images?.[0] ? (
-                              <img src={phone.images[0]} alt="" className="w-full h-full object-cover" />
+                          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center overflow-hidden shrink-0">
+                            {item.images?.[0] ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={item.images[0]} alt="" className="w-full h-full object-cover" />
                             ) : (
-                              <span className="text-2xl">📱</span>
+                              <span className="text-2xl">📦</span>
                             )}
                           </div>
                           <div>
-                            <p className="font-medium">{phone.model_name}</p>
-                            <p className="text-xs text-gray-500">{phone.variant} {phone.color ? `• ${phone.color}` : ""}</p>
+                            <p className="font-medium">{item.model_name}</p>
+                            <p className="text-xs text-gray-500">
+                              {item.variant}{item.color ? ` • ${item.color}` : ""}
+                            </p>
                           </div>
                         </div>
                       </td>
-                      <td className="p-4 text-gray-400">{phone.brand}</td>
-                      <td className="p-4">
-                        <Badge variant="outline" className="border-gray-700">{condition}</Badge>
-                      </td>
+                      <td className="p-4 text-gray-400">{item.brand}</td>
+                      {biz.use_condition_grades && (
+                        <td className="p-4">
+                          <Badge variant="outline" className="border-gray-700">
+                            {conditionLabel(item.condition_grade)}
+                          </Badge>
+                        </td>
+                      )}
+                      {biz.use_battery_health && (
+                        <td className="p-4 text-gray-400">
+                          {item.battery_health_percent != null ? `${item.battery_health_percent}%` : "—"}
+                        </td>
+                      )}
                       <td className="p-4 font-semibold text-green-500">{formatPrice(price)}</td>
                       <td className="p-4 text-gray-400">{formatPrice(cost)}</td>
                       <td className="p-4">
@@ -314,19 +318,19 @@ export default function InventoryPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="bg-gray-900 border-gray-800">
                             <DropdownMenuItem asChild className="cursor-pointer">
-                              <Link href={`/phones/${phone.id}`}>
+                              <Link href={`/phones/${item.id}`}>
                                 <Eye className="w-4 h-4 mr-2" />
                                 View
                               </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild className="cursor-pointer">
-                              <Link href={`/admin/inventory/${phone.id}/edit`}>
+                              <Link href={`/admin/inventory/${item.id}/edit`}>
                                 <Edit className="w-4 h-4 mr-2" />
                                 Edit
                               </Link>
                             </DropdownMenuItem>
-                            <DropdownMenuItem 
-                              onClick={() => handleDelete(phone.id)}
+                            <DropdownMenuItem
+                              onClick={() => handleDelete(item.id)}
                               className="cursor-pointer text-red-500 focus:text-red-500"
                             >
                               <Trash2 className="w-4 h-4 mr-2" />

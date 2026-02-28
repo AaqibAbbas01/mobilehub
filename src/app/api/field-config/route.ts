@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
+import { getProfileId } from '@/lib/profile'
 
 // GET - Fetch field configuration for a table
 export async function GET(request: NextRequest) {
@@ -8,6 +9,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const table = searchParams.get('table')
     const visibleOnly = searchParams.get('visibleOnly') === 'true'
+    const profileId = getProfileId(request)
 
     let query = supabase
       .from('field_config')
@@ -20,6 +22,11 @@ export async function GET(request: NextRequest) {
 
     if (visibleOnly) {
       query = query.eq('is_visible', true)
+    }
+
+    // Scope to active profile so each profile has its own field visibility settings
+    if (profileId) {
+      query = query.eq('profile_id', profileId)
     }
 
     const { data, error } = await query
@@ -45,29 +52,55 @@ export async function POST(request: NextRequest) {
     const supabase = await createClient()
     const body = await request.json()
     const { table_name, field_name, field_label, field_type, is_visible, is_required, display_order, options, placeholder, default_value, section, is_system } = body
+    const profileId = getProfileId(request)
 
-    // Upsert the field config
-    const { data, error } = await supabase
+    const fieldData = {
+      table_name,
+      field_name,
+      field_label,
+      field_type: field_type || 'text',
+      is_system: is_system ?? false,
+      is_visible: is_visible ?? true,
+      is_required: is_required ?? false,
+      display_order: display_order ?? 0,
+      options: options || null,
+      placeholder: placeholder || null,
+      default_value: default_value || null,
+      section: section || 'general',
+      updated_at: new Date().toISOString(),
+      ...(profileId ? { profile_id: profileId } : {}),
+    }
+
+    // Check if record already exists (safe upsert that works with nullable profile_id)
+    let existsQuery = supabase
       .from('field_config')
-      .upsert({
-        table_name,
-        field_name,
-        field_label,
-        field_type: field_type || 'text',
-        is_system: is_system ?? false,
-        is_visible: is_visible ?? true,
-        is_required: is_required ?? false,
-        display_order: display_order ?? 0,
-        options: options || null,
-        placeholder: placeholder || null,
-        default_value: default_value || null,
-        section: section || 'general',
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'table_name,field_name'
-      })
-      .select()
-      .single()
+      .select('id')
+      .eq('table_name', table_name)
+      .eq('field_name', field_name)
+
+    if (profileId) {
+      existsQuery = existsQuery.eq('profile_id', profileId)
+    } else {
+      existsQuery = existsQuery.is('profile_id', null)
+    }
+
+    const { data: existing } = await existsQuery.maybeSingle()
+
+    let data, error
+    if (existing) {
+      ;({ data, error } = await supabase
+        .from('field_config')
+        .update(fieldData)
+        .eq('id', existing.id)
+        .select()
+        .single())
+    } else {
+      ;({ data, error } = await supabase
+        .from('field_config')
+        .insert(fieldData)
+        .select()
+        .single())
+    }
 
     if (error) {
       console.error('Error saving field config:', error)
@@ -92,19 +125,47 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Fields array required' }, { status: 400 })
     }
 
+    const profileId = getProfileId(request)
+
     // Update each field
     const results = []
     for (const field of fields) {
-      const { data, error } = await supabase
+      // Safe upsert: check existence first (works with nullable profile_id)
+      let existsQuery = supabase
         .from('field_config')
-        .upsert({
-          ...field,
-          updated_at: new Date().toISOString()
-        }, {
-          onConflict: 'table_name,field_name'
-        })
-        .select()
-        .single()
+        .select('id')
+        .eq('table_name', field.table_name)
+        .eq('field_name', field.field_name)
+
+      if (profileId) {
+        existsQuery = existsQuery.eq('profile_id', profileId)
+      } else {
+        existsQuery = existsQuery.is('profile_id', null)
+      }
+
+      const { data: existing } = await existsQuery.maybeSingle()
+
+      const fieldData = {
+        ...field,
+        updated_at: new Date().toISOString(),
+        ...(profileId ? { profile_id: profileId } : {}),
+      }
+
+      let data, error
+      if (existing) {
+        ;({ data, error } = await supabase
+          .from('field_config')
+          .update(fieldData)
+          .eq('id', existing.id)
+          .select()
+          .single())
+      } else {
+        ;({ data, error } = await supabase
+          .from('field_config')
+          .insert(fieldData)
+          .select()
+          .single())
+      }
 
       if (error) {
         results.push({ field: field.field_name, error: error.message })

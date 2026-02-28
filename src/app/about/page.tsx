@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { 
-  Phone, 
   MessageCircle, 
   Users, 
   Award, 
@@ -15,26 +15,29 @@ import {
   MapPin,
   Calendar,
   TrendingUp,
-  Sparkles
+  Sparkles,
+  Store
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getWhatsAppLink } from "@/lib/utils";
+import { useBusiness } from "@/contexts/BusinessContext";
 
-const WHATSAPP_NUMBER = "919910724940";
-
-const stats = [
-  { value: "15,000+", label: "Phones Sold", icon: Phone },
-  { value: "12,500+", label: "Happy Customers", icon: Users },
-  { value: "8+", label: "Years Experience", icon: Calendar },
-  { value: "< 2%", label: "Return Rate", icon: TrendingUp },
-];
+interface Settings {
+  store_name?: string;
+  tagline?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  whatsapp_number?: string;
+  logo_url?: string;
+}
 
 const values = [
   {
     icon: Shield,
     title: "Quality First",
-    description: "Every phone goes through our rigorous 50+ point quality check before listing.",
+    description: "Every item goes through our rigorous quality check before listing.",
     gradient: "from-green-500 to-emerald-600",
   },
   {
@@ -46,33 +49,43 @@ const values = [
   {
     icon: Zap,
     title: "Fast & Reliable",
-    description: "Same-day delivery in Delhi NCR. Quick responses on WhatsApp 24/7.",
+    description: "Quick responses and dependable service, every time.",
     gradient: "from-yellow-500 to-orange-600",
   },
   {
     icon: Target,
     title: "Best Prices",
-    description: "We guarantee the best prices in Delhi or we'll match any competitor's price.",
+    description: "We guarantee the best prices or we'll match any competitor's price.",
     gradient: "from-blue-500 to-cyan-600",
   },
 ];
 
-const team = [
-  { name: "Rajesh Kumar", role: "Founder & CEO", emoji: "👨‍💼", experience: "15+ years in mobile industry" },
-  { name: "Priya Sharma", role: "Operations Head", emoji: "👩‍💻", experience: "Customer experience expert" },
-  { name: "Amit Singh", role: "Tech Lead", emoji: "👨‍🔧", experience: "Device quality specialist" },
-  { name: "Neha Gupta", role: "Sales Manager", emoji: "👩‍💼", experience: "10+ years sales experience" },
-];
-
-const milestones = [
-  { year: "2016", title: "Started Operations", description: "Opened our first shop in Gaffar Market" },
-  { year: "2018", title: "1000 Phones Sold", description: "Reached our first major milestone" },
-  { year: "2020", title: "Went Digital", description: "Launched WhatsApp support & online presence" },
-  { year: "2023", title: "AI Integration", description: "Introduced AI-powered customer support" },
-  { year: "2024", title: "15,000+ Phones", description: "Became Delhi's #1 pre-owned phone store" },
-];
-
 export default function AboutPage() {
+  const biz = useBusiness();
+  const [settings, setSettings] = useState<Settings | null>(null);
+
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then(setSettings)
+      .catch(() => {});
+  }, []);
+
+  const storeName = settings?.store_name || biz.display_name || biz.name || "Our Store";
+  const tagline = settings?.tagline || `Premium ${biz.product_name_plural} — Quality Guaranteed`;
+  const address = settings?.address || "";
+  const phone = settings?.phone || "";
+  const email = settings?.email || "";
+  const whatsappNum = settings?.whatsapp_number || "919999999999";
+
+  // Hero stats from business config
+  const heroStats = [
+    { value: biz.hero_stat_1_value || "1,000+", label: biz.hero_stat_1_label || `${biz.product_name_plural} Sold` },
+    { value: biz.hero_stat_2_value || "500+", label: biz.hero_stat_2_label || "Happy Customers" },
+    { value: biz.hero_stat_3_value || "5+", label: biz.hero_stat_3_label || "Years Experience" },
+    { value: biz.hero_stat_4_value || "< 2%", label: biz.hero_stat_4_label || "Return Rate" },
+  ];
+
   return (
     <div className="min-h-screen bg-[#030712] text-white">
       {/* Background */}
@@ -86,23 +99,24 @@ export default function AboutPage() {
       <header className="sticky top-0 z-50 glass">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3">
-            <div className="bg-gradient-to-br from-orange-500 to-red-600 p-2 rounded-xl">
-              <Phone className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold">
-              Mobile<span className="text-orange-500">Hub</span>
-            </span>
+            {settings?.logo_url ? (
+              <img src={settings.logo_url} alt={storeName} className="h-8 w-auto" />
+            ) : (
+              <div className="bg-gradient-to-br from-orange-500 to-red-600 p-2 rounded-xl">
+                <Store className="w-5 h-5 text-white" />
+              </div>
+            )}
+            <span className="text-xl font-bold">{storeName}</span>
           </Link>
           
           <nav className="hidden md:flex items-center gap-6">
             <Link href="/" className="text-gray-400 hover:text-white transition-colors">Home</Link>
-            <Link href="/phones" className="text-gray-400 hover:text-white transition-colors">All Phones</Link>
-            <Link href="/brands" className="text-gray-400 hover:text-white transition-colors">Brands</Link>
+            <Link href="/phones" className="text-gray-400 hover:text-white transition-colors">{biz.product_name_plural}</Link>
             <Link href="/about" className="text-orange-500 font-medium">About</Link>
             <Link href="/contact" className="text-gray-400 hover:text-white transition-colors">Contact</Link>
           </nav>
 
-          <a href={getWhatsAppLink(WHATSAPP_NUMBER)} target="_blank" rel="noopener noreferrer">
+          <a href={getWhatsAppLink(whatsappNum)} target="_blank" rel="noopener noreferrer">
             <Button className="btn-futuristic bg-gradient-to-r from-green-500 to-emerald-600 text-white border-0 rounded-full">
               <MessageCircle className="w-4 h-4 mr-2" />
               <span className="hidden sm:inline">WhatsApp</span>
@@ -117,18 +131,16 @@ export default function AboutPage() {
           <div className="max-w-4xl mx-auto text-center">
             <Badge className="bg-orange-500/10 text-orange-500 border-orange-500/30 mb-6">
               <Sparkles className="w-3 h-3 mr-1" />
-              Since 2016
+              About Us
             </Badge>
             <h1 className="text-5xl md:text-7xl font-bold mb-6">
-              Delhi&apos;s Most
+              {storeName}
               <span className="block bg-gradient-to-r from-orange-500 via-red-500 to-pink-500 bg-clip-text text-transparent">
-                Trusted
+                Our Story
               </span>
-              Phone Store
             </h1>
             <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-              We&apos;re on a mission to make premium smartphones accessible to everyone. 
-              Quality certified, warranty included, prices you&apos;ll love.
+              {tagline}
             </p>
           </div>
         </div>
@@ -138,10 +150,14 @@ export default function AboutPage() {
       <section className="relative py-12">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-            {stats.map((stat, i) => (
+            {heroStats.map((stat, i) => (
               <div key={i} className="glass-card rounded-2xl p-6 text-center card-hover-effect">
                 <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-orange-500/20 to-red-500/20 flex items-center justify-center">
-                  <stat.icon className="w-7 h-7 text-orange-500" />
+                  {[TrendingUp, Users, Calendar, Award][i] && (() => {
+                    const icons = [TrendingUp, Users, Calendar, Award];
+                    const Icon = icons[i];
+                    return <Icon className="w-7 h-7 text-orange-500" />;
+                  })()}
                 </div>
                 <p className="text-3xl font-bold bg-gradient-to-r from-white to-gray-400 bg-clip-text text-transparent">
                   {stat.value}
@@ -166,19 +182,18 @@ export default function AboutPage() {
               </h2>
               <div className="space-y-4 text-gray-400">
                 <p>
-                  In 2016, our founder Rajesh Kumar noticed a gap in the market. People wanted 
-                  quality phones but couldn&apos;t always afford brand new devices. The pre-owned 
-                  market existed, but it was plagued by trust issues.
+                  We started {storeName} with a simple mission: make quality {biz.product_name_plural.toLowerCase()} accessible to everyone at fair prices.
                 </p>
                 <p>
-                  We set out to change that. Starting from a small shop in Gaffar Market, 
-                  Karol Bagh, we built MobileHub on three pillars: <span className="text-white">Quality</span>, 
-                  <span className="text-white"> Transparency</span>, and <span className="text-white">Trust</span>.
+                  Built on three pillars: <span className="text-white">Quality</span>,{" "}
+                  <span className="text-white">Transparency</span>, and{" "}
+                  <span className="text-white">Trust</span>.
                 </p>
-                <p>
-                  Today, we&apos;re proud to be Delhi&apos;s most trusted pre-owned phone destination, 
-                  having served over 12,500 happy customers and counting.
-                </p>
+                {address && (
+                  <p>
+                    Located at <span className="text-white">{address}</span> — visit us anytime!
+                  </p>
+                )}
               </div>
             </div>
 
@@ -187,22 +202,22 @@ export default function AboutPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="glass rounded-2xl p-6 text-center">
                     <div className="text-5xl mb-3">🏪</div>
-                    <p className="font-semibold">Gaffar Market</p>
-                    <p className="text-xs text-gray-500">Our Home Since 2016</p>
+                    <p className="font-semibold">Our Store</p>
+                    <p className="text-xs text-gray-500">{address || storeName}</p>
                   </div>
                   <div className="glass rounded-2xl p-6 text-center">
                     <div className="text-5xl mb-3">🤝</div>
                     <p className="font-semibold">Customer First</p>
-                    <p className="text-xs text-gray-500">Always & Forever</p>
+                    <p className="text-xs text-gray-500">Always &amp; Forever</p>
                   </div>
                   <div className="glass rounded-2xl p-6 text-center">
                     <div className="text-5xl mb-3">✅</div>
-                    <p className="font-semibold">50+ Point Check</p>
-                    <p className="text-xs text-gray-500">Quality Assured</p>
+                    <p className="font-semibold">Quality Assured</p>
+                    <p className="text-xs text-gray-500">Every item checked</p>
                   </div>
                   <div className="glass rounded-2xl p-6 text-center">
                     <div className="text-5xl mb-3">🛡️</div>
-                    <p className="font-semibold">6-Month Warranty</p>
+                    <p className="font-semibold">Warranty Included</p>
                     <p className="text-xs text-gray-500">Peace of Mind</p>
                   </div>
                 </div>
@@ -236,62 +251,6 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* Timeline */}
-      <section className="relative py-20">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <Badge className="bg-cyan-500/10 text-cyan-500 border-cyan-500/30 mb-4">
-              Our Journey
-            </Badge>
-            <h2 className="text-4xl font-bold">Key <span className="text-orange-500">Milestones</span></h2>
-          </div>
-
-          <div className="max-w-3xl mx-auto">
-            <div className="relative">
-              {/* Line */}
-              <div className="absolute left-8 top-0 bottom-0 w-0.5 bg-gradient-to-b from-orange-500 via-purple-500 to-cyan-500" />
-              
-              {milestones.map((milestone, i) => (
-                <div key={i} className="relative flex gap-6 pb-12 last:pb-0">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-sm font-bold z-10 flex-shrink-0">
-                    {milestone.year}
-                  </div>
-                  <div className="glass-card rounded-2xl p-6 flex-1">
-                    <h3 className="text-xl font-bold mb-1">{milestone.title}</h3>
-                    <p className="text-gray-400">{milestone.description}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Team */}
-      <section className="relative py-20">
-        <div className="container mx-auto px-4">
-          <div className="text-center mb-12">
-            <Badge className="bg-pink-500/10 text-pink-500 border-pink-500/30 mb-4">
-              The People Behind
-            </Badge>
-            <h2 className="text-4xl font-bold">Our <span className="text-orange-500">Team</span></h2>
-          </div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {team.map((member, i) => (
-              <div key={i} className="glass-card rounded-2xl p-6 text-center card-hover-effect">
-                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center text-4xl">
-                  {member.emoji}
-                </div>
-                <h3 className="font-bold text-lg">{member.name}</h3>
-                <p className="text-orange-500 text-sm">{member.role}</p>
-                <p className="text-gray-500 text-xs mt-2">{member.experience}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* CTA */}
       <section className="relative py-20">
         <div className="container mx-auto px-4">
@@ -302,10 +261,10 @@ export default function AboutPage() {
             <div className="relative px-8 py-16 text-center">
               <h2 className="text-4xl font-bold mb-4">Ready to Experience the Difference?</h2>
               <p className="text-xl text-white/80 max-w-2xl mx-auto mb-8">
-                Visit our store or message us on WhatsApp. Let us help you find your perfect phone.
+                {biz.whatsapp_cta_label || `Chat with us on WhatsApp or visit our store.`}
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <a href={getWhatsAppLink(WHATSAPP_NUMBER)} target="_blank" rel="noopener noreferrer">
+                <a href={getWhatsAppLink(whatsappNum)} target="_blank" rel="noopener noreferrer">
                   <Button className="bg-white text-gray-900 hover:bg-gray-100 text-lg px-8 py-6 rounded-2xl">
                     <MessageCircle className="w-5 h-5 mr-2 text-green-600" />
                     Chat Now
@@ -326,7 +285,7 @@ export default function AboutPage() {
       {/* Footer */}
       <footer className="relative py-12 border-t border-gray-800">
         <div className="container mx-auto px-4 text-center">
-          <p className="text-gray-500">© 2024 MobileHub Delhi. All rights reserved.</p>
+          <p className="text-gray-500">© {new Date().getFullYear()} {storeName}. All rights reserved.</p>
         </div>
       </footer>
     </div>

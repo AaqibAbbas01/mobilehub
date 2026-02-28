@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getProfileId } from "@/lib/profile";
 
 // GET all inquiries with stats
 export async function GET(request: NextRequest) {
@@ -13,11 +14,17 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "50");
     const offset = parseInt(searchParams.get("offset") || "0");
 
+    const profileId = getProfileId(request);
+
     let query = supabase
       .from("inquiries")
       .select("*", { count: "exact" })
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
+
+    if (profileId) {
+      query = query.eq("profile_id", profileId);
+    }
 
     if (search) {
       query = query.or(`customer_name.ilike.%${search}%,customer_phone.ilike.%${search}%,inquiry_text.ilike.%${search}%`);
@@ -39,7 +46,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Calculate stats
-    const allInquiries = await supabase.from("inquiries").select("status, created_at");
+    let statsQuery = supabase.from("inquiries").select("status, created_at");
+    if (profileId) statsQuery = statsQuery.eq("profile_id", profileId);
+    const allInquiries = await statsQuery;
     const inquiriesData = allInquiries.data || [];
     
     // Get today's date for filtering
@@ -109,7 +118,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const inquiryData = {
+    const profileIdPost = getProfileId(request);
+
+    const inquiryData: Record<string, unknown> = {
       customer_name: finalName,
       customer_phone: finalPhone,
       inquiry_text: finalMessage || "WhatsApp inquiry",
@@ -119,6 +130,7 @@ export async function POST(request: NextRequest) {
       notes: notes || null,
       assigned_to: assigned_to || null,
       metadata: metadata || {}, // Store conversation metadata (intent, bot_reply, etc.)
+      ...(profileIdPost ? { profile_id: profileIdPost } : {}),
     };
 
     const { data, error } = await supabase

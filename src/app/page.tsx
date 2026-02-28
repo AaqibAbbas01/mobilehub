@@ -29,8 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatPrice, getWhatsAppLink } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
-
-const WHATSAPP_NUMBER = "919910724940";
+import { useBusinessConfig } from "@/contexts/BusinessContext";
 
 interface PhoneItem {
   id: string;
@@ -57,32 +56,26 @@ const brandGradients: Record<string, string> = {
   "default": "from-gray-500 to-gray-700",
 };
 
-const stats = [
-  { label: "Phones Sold", value: "15,000+", icon: Smartphone },
-  { label: "Happy Customers", value: "12,500+", icon: Users },
-  { label: "Years Experience", value: "8+", icon: Award },
-  { label: "Warranty Claims", value: "< 2%", icon: Shield },
-];
-
-const brands = [
-  { name: "Apple", emoji: "🍎" },
-  { name: "Samsung", emoji: "📱" },
-  { name: "OnePlus", emoji: "🔴" },
-  { name: "Google", emoji: "🌐" },
-  { name: "Xiaomi", emoji: "🟠" },
-  { name: "Vivo", emoji: "🔵" },
-];
-
 export default function HomePage() {
+  const { config: biz } = useBusinessConfig();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrollY, setScrollY] = useState(0);
   const [featuredPhones, setFeaturedPhones] = useState<PhoneItem[]>([]);
   const [loadingPhones, setLoadingPhones] = useState(true);
+  const [settings, setSettings] = useState<{ store_name?: string; tagline?: string; whatsapp_number?: string } | null>(null);
 
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  // Load store settings (name, whatsapp)
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((d) => { if (d.success) setSettings(d.settings); })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -108,6 +101,17 @@ export default function HomePage() {
     fetchFeaturedPhones();
   }, []);
 
+  const storeName  = settings?.store_name  || "My Store";
+  const whatsappNum = settings?.whatsapp_number?.replace(/\D/g, "") || "";
+  const productPlural = biz.product_name_plural || "Products";
+  const heroStats = [
+    { label: biz.hero_stat_1_label, value: biz.hero_stat_1_value, icon: Smartphone },
+    { label: biz.hero_stat_2_label, value: biz.hero_stat_2_value, icon: Users },
+    { label: biz.hero_stat_3_label, value: biz.hero_stat_3_value, icon: Award },
+    { label: biz.hero_stat_4_label, value: biz.hero_stat_4_value, icon: Shield },
+  ];
+  const categoryList = ((biz.primary_categories as string[]) || []).slice(0, 6);
+
   return (
     <div className="min-h-screen bg-[#030712] text-white overflow-hidden">
       {/* Animated Background */}
@@ -131,21 +135,18 @@ export default function HomePage() {
               </div>
             </div>
             <div>
-              <span className="text-xl font-bold tracking-tight">
-                Mobile<span className="text-orange-500">Hub</span>
-              </span>
-              <span className="hidden sm:block text-[10px] text-gray-400 uppercase tracking-[0.2em]">Delhi</span>
+              <span className="text-xl font-bold tracking-tight">{storeName}</span>
             </div>
           </Link>
           
           {/* Desktop Navigation */}
           <nav className="hidden lg:flex items-center gap-8">
             {[
-              { label: "Home", href: "/" },
-              { label: "All Phones", href: "/phones" },
-              { label: "Brands", href: "/brands" },
-              { label: "About", href: "/about" },
-              { label: "Contact", href: "/contact" },
+              { label: "Home",            href: "/" },
+              { label: `All ${productPlural}`, href: "/phones" },
+              { label: biz.category_label + "s", href: "/brands" },
+              { label: "About",           href: "/about" },
+              { label: "Contact",         href: "/contact" },
             ].map((link) => (
               <Link 
                 key={link.href}
@@ -159,12 +160,14 @@ export default function HomePage() {
           </nav>
 
           <div className="flex items-center gap-4">
-            <a href={getWhatsAppLink(WHATSAPP_NUMBER)} target="_blank" rel="noopener noreferrer" className="hidden sm:block">
-              <Button className="btn-futuristic bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white border-0 rounded-full px-6">
-                <MessageCircle className="w-4 h-4 mr-2" />
-                WhatsApp
-              </Button>
-            </a>
+            {whatsappNum && (
+              <a href={getWhatsAppLink(whatsappNum)} target="_blank" rel="noopener noreferrer" className="hidden sm:block">
+                <Button className="btn-futuristic bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white border-0 rounded-full px-6">
+                  <MessageCircle className="w-4 h-4 mr-2" />
+                  WhatsApp
+                </Button>
+              </a>
+            )}
             <Link href="/admin" className="hidden md:block">
               <Button variant="outline" className="border-gray-700 bg-transparent hover:bg-white/5 rounded-full text-gray-300 hover:text-white">
                 Admin
@@ -185,12 +188,12 @@ export default function HomePage() {
         {isMenuOpen && (
           <div className="lg:hidden glass mt-2 mx-4 rounded-2xl p-6 space-y-4">
             {[
-              { label: "Home", href: "/" },
-              { label: "All Phones", href: "/phones" },
-              { label: "Brands", href: "/brands" },
-              { label: "About", href: "/about" },
-              { label: "Contact", href: "/contact" },
-              { label: "Admin Dashboard", href: "/admin" },
+              { label: "Home",                   href: "/" },
+              { label: `All ${productPlural}`,   href: "/phones" },
+              { label: biz.category_label + "s", href: "/brands" },
+              { label: "About",                  href: "/about" },
+              { label: "Contact",                href: "/contact" },
+              { label: "Admin Dashboard",        href: "/admin" },
             ].map((link) => (
               <Link 
                 key={link.href}
@@ -212,35 +215,36 @@ export default function HomePage() {
             <div className="space-y-8">
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass border border-orange-500/30">
                 <Sparkles className="w-4 h-4 text-orange-500" />
-                <span className="text-sm text-gray-300">Delhi&apos;s #1 Pre-Owned Phone Store</span>
+                <span className="text-sm text-gray-300">{settings?.tagline || `Quality ${productPlural} — Guaranteed`}</span>
               </div>
               
               <h1 className="text-5xl md:text-7xl font-bold leading-tight">
                 <span className="block">Premium</span>
                 <span className="block bg-gradient-to-r from-orange-500 via-red-500 to-pink-500 bg-clip-text text-transparent">
-                  Second-Hand
+                  {productPlural}
                 </span>
-                <span className="block">Smartphones</span>
+                <span className="block">at Best Prices</span>
               </h1>
               
               <p className="text-xl text-gray-400 max-w-lg">
-                Get flagship phones at unbeatable prices. Every device is verified, certified, and comes with a 
-                <span className="text-orange-500 font-semibold"> 6-month warranty</span>.
+                Get quality {productPlural.toLowerCase()} at unbeatable prices. Every item is verified, certified, and comes with warranty.
               </p>
               
               <div className="flex flex-wrap gap-4">
                 <Link href="/phones">
                   <Button className="btn-futuristic bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white text-lg px-8 py-6 rounded-2xl border-0">
-                    Explore Collection
+                    Browse {productPlural}
                     <ArrowRight className="w-5 h-5 ml-2" />
                   </Button>
                 </Link>
-                <a href={getWhatsAppLink(WHATSAPP_NUMBER)} target="_blank" rel="noopener noreferrer">
-                  <Button variant="outline" className="text-lg px-8 py-6 rounded-2xl border-gray-700 bg-transparent hover:bg-white/5 text-white">
-                    <MessageCircle className="w-5 h-5 mr-2 text-green-500" />
-                    Quick Inquiry
-                  </Button>
-                </a>
+                {whatsappNum && (
+                  <a href={getWhatsAppLink(whatsappNum)} target="_blank" rel="noopener noreferrer">
+                    <Button variant="outline" className="text-lg px-8 py-6 rounded-2xl border-gray-700 bg-transparent hover:bg-white/5 text-white">
+                      <MessageCircle className="w-5 h-5 mr-2 text-green-500" />
+                      Quick Inquiry
+                    </Button>
+                  </a>
+                )}
               </div>
 
               {/* Trust Badges */}
@@ -319,7 +323,7 @@ export default function HomePage() {
       <section className="relative py-20">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-            {stats.map((stat, i) => (
+            {heroStats.map((stat, i) => (
               <div 
                 key={i} 
                 className="glass-card rounded-2xl p-6 text-center card-hover-effect"
@@ -337,7 +341,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Featured Phones */}
+      {/* Featured Products */}
       <section className="relative py-20">
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
@@ -347,7 +351,7 @@ export default function HomePage() {
                 Hot Deals
               </Badge>
               <h2 className="text-4xl md:text-5xl font-bold">
-                Featured <span className="text-orange-500">Phones</span>
+                Featured <span className="text-orange-500">{productPlural}</span>
               </h2>
               <p className="text-gray-400 mt-2">Hand-picked deals with maximum savings</p>
             </div>
@@ -367,7 +371,7 @@ export default function HomePage() {
             ) : featuredPhones.length === 0 ? (
               <div className="col-span-full text-center py-20">
                 <Smartphone className="w-16 h-16 mx-auto text-gray-600 mb-4" />
-                <p className="text-gray-400">No phones available yet. Check back soon!</p>
+                <p className="text-gray-400">No {productPlural.toLowerCase()} available yet. Check back soon!</p>
               </div>
             ) : (
               featuredPhones.map((phone) => (
@@ -437,20 +441,22 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Brands Section */}
+      {/* Categories Section */}
       <section className="relative py-20">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
-            <h2 className="text-4xl font-bold mb-4">Shop by <span className="text-orange-500">Brand</span></h2>
-            <p className="text-gray-400">All major brands available with warranty</p>
+            <h2 className="text-4xl font-bold mb-4">Shop by <span className="text-orange-500">{biz.category_label}</span></h2>
+            <p className="text-gray-400">All major {biz.category_label.toLowerCase()}s available with warranty</p>
           </div>
 
-          <div className="grid grid-cols-3 md:grid-cols-6 gap-4">
-            {brands.map((brand) => (
-              <Link href={`/phones?brand=${brand.name}`} key={brand.name}>
+          <div className={`grid gap-4 ${categoryList.length <= 3 ? "grid-cols-3" : "grid-cols-3 md:grid-cols-6"}`}>
+            {categoryList.map((cat) => (
+              <Link href={`/phones?brand=${cat}`} key={cat}>
                 <div className="glass-card rounded-2xl p-6 text-center card-hover-effect">
-                  <span className="text-4xl block mb-3">{brand.emoji}</span>
-                  <p className="font-medium text-sm">{brand.name}</p>
+                  <span className="text-4xl block mb-3">
+                    {brandGradients[cat] ? "📦" : "📦"}
+                  </span>
+                  <p className="font-medium text-sm">{cat}</p>
                 </div>
               </Link>
             ))}
@@ -465,21 +471,21 @@ export default function HomePage() {
             <div className="grid lg:grid-cols-2 gap-12 items-center">
               <div>
                 <Badge className="bg-orange-500/10 text-orange-500 border-orange-500/30 mb-6">
-                  Why MobileHub?
+                  Why {storeName}?
                 </Badge>
                 <h2 className="text-4xl md:text-5xl font-bold mb-6">
-                  The Smartest Way to Buy <span className="text-orange-500">Pre-Owned</span>
+                  The Smartest Way to Buy <span className="text-orange-500">{productPlural}</span>
                 </h2>
                 <p className="text-gray-400 text-lg mb-8">
-                  We&apos;ve revolutionized the second-hand phone market in Delhi with our rigorous quality checks, transparent pricing, and customer-first approach.
+                  We&apos;ve built a trusted platform for quality {productPlural.toLowerCase()} with rigorous quality checks, transparent pricing, and a customer-first approach.
                 </p>
                 
                 <div className="space-y-6">
                   {[
-                    { icon: Shield, title: "6-Month Warranty", desc: "Full coverage on all devices" },
-                    { icon: CheckCircle2, title: "50+ Point Check", desc: "Every phone thoroughly tested" },
-                    { icon: Zap, title: "Instant Delivery", desc: "Same day delivery in Delhi NCR" },
-                    { icon: Award, title: "Best Price Guarantee", desc: "Lowest prices or we match it" },
+                    { icon: Shield, title: "Warranty Included", desc: "Coverage on all purchases" },
+                    { icon: CheckCircle2, title: "Quality Checked", desc: "Every item thoroughly inspected" },
+                    { icon: Zap, title: "Fast Delivery", desc: "Quick delivery available" },
+                    { icon: Award, title: "Best Price Guarantee", desc: "Competitive pricing always" },
                   ].map((feature, i) => (
                     <div key={i} className="flex gap-4 items-start">
                       <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500/20 to-red-500/20 flex items-center justify-center flex-shrink-0">
@@ -551,21 +557,25 @@ export default function HomePage() {
             
             <div className="relative px-8 py-16 md:py-24 text-center">
               <h2 className="text-4xl md:text-5xl font-bold mb-6">
-                Ready to Get Your Dream Phone?
+                Ready to Get Your {biz.product_name_singular}?
               </h2>
               <p className="text-xl text-white/80 max-w-2xl mx-auto mb-8">
-                Message us on WhatsApp for instant support. Our AI assistant is available 24/7 to help you find the perfect phone.
+                {biz.enable_whatsapp_ai
+                  ? "Message us on WhatsApp for instant support. Our AI assistant is available 24/7 to help you find the perfect item."
+                  : `Browse our collection of quality ${productPlural.toLowerCase()} and find the best deal for you.`}
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <a href={getWhatsAppLink(WHATSAPP_NUMBER)} target="_blank" rel="noopener noreferrer">
-                  <Button className="bg-white text-gray-900 hover:bg-gray-100 text-lg px-8 py-6 rounded-2xl">
-                    <MessageCircle className="w-5 h-5 mr-2 text-green-600" />
-                    Chat on WhatsApp
-                  </Button>
-                </a>
+                {whatsappNum && (
+                  <a href={getWhatsAppLink(whatsappNum)} target="_blank" rel="noopener noreferrer">
+                    <Button className="bg-white text-gray-900 hover:bg-gray-100 text-lg px-8 py-6 rounded-2xl">
+                      <MessageCircle className="w-5 h-5 mr-2 text-green-600" />
+                      {biz.whatsapp_cta_label || "Chat on WhatsApp"}
+                    </Button>
+                  </a>
+                )}
                 <Link href="/phones">
                   <Button variant="outline" className="border-white/30 bg-transparent hover:bg-white/10 text-white text-lg px-8 py-6 rounded-2xl">
-                    Browse Collection
+                    Browse {productPlural}
                   </Button>
                 </Link>
               </div>
@@ -583,30 +593,33 @@ export default function HomePage() {
                 <div className="bg-gradient-to-br from-orange-500 to-red-600 p-2.5 rounded-xl">
                   <Phone className="w-6 h-6 text-white" />
                 </div>
-                <div>
-                  <span className="text-xl font-bold">Mobile<span className="text-orange-500">Hub</span></span>
-                  <span className="block text-[10px] text-gray-500 uppercase tracking-[0.2em]">Delhi</span>
-                </div>
+                <span className="text-xl font-bold">{storeName}</span>
               </Link>
               <p className="text-gray-400 max-w-md mb-6">
-                Delhi&apos;s most trusted destination for premium pre-owned smartphones. Quality certified, warranty included.
+                {settings?.tagline || `Quality ${productPlural} — Guaranteed`}
               </p>
-              <div className="flex gap-4">
-                <a href={getWhatsAppLink(WHATSAPP_NUMBER)} target="_blank" rel="noopener noreferrer" 
-                   className="w-10 h-10 rounded-full glass flex items-center justify-center hover:bg-green-500/20 transition-colors">
-                  <MessageCircle className="w-5 h-5 text-green-500" />
-                </a>
-              </div>
+              {whatsappNum && (
+                <div className="flex gap-4">
+                  <a href={getWhatsAppLink(whatsappNum)} target="_blank" rel="noopener noreferrer" 
+                    className="w-10 h-10 rounded-full glass flex items-center justify-center hover:bg-green-500/20 transition-colors">
+                    <MessageCircle className="w-5 h-5 text-green-500" />
+                  </a>
+                </div>
+              )}
             </div>
 
             <div>
               <h4 className="font-semibold mb-4">Quick Links</h4>
               <ul className="space-y-3">
-                {['All Phones', 'Brands', 'About Us', 'Contact'].map((link) => (
-                  <li key={link}>
-                    <Link href={`/${link.toLowerCase().replace(' ', '-').replace('all-phones', 'phones').replace('about-us', 'about')}`} 
-                          className="text-gray-400 hover:text-orange-500 transition-colors">
-                      {link}
+                {[
+                  { label: `All ${productPlural}`, href: "/phones" },
+                  { label: `${biz.category_label}s`, href: "/brands" },
+                  { label: "About Us", href: "/about" },
+                  { label: "Contact", href: "/contact" },
+                ].map((link) => (
+                  <li key={link.href}>
+                    <Link href={link.href} className="text-gray-400 hover:text-orange-500 transition-colors">
+                      {link.label}
                     </Link>
                   </li>
                 ))}
@@ -614,24 +627,29 @@ export default function HomePage() {
             </div>
 
             <div>
-              <h4 className="font-semibold mb-4">Visit Us</h4>
-              <address className="text-gray-400 not-italic space-y-2">
-                <p>Shop 42, Gaffar Market</p>
-                <p>Karol Bagh, New Delhi</p>
-                <p>110005</p>
-                <p className="pt-2">
-                  <a href="tel:+919910724940" className="hover:text-orange-500">+91 99107 24940</a>
-                </p>
+              <h4 className="font-semibold mb-4">Contact Us</h4>
+              <address className="text-gray-400 not-italic space-y-2 text-sm">
+                {settings?.address && <p>{settings.address}</p>}
+                {settings?.phone && (
+                  <p className="pt-2">
+                    <a href={`tel:${settings.phone}`} className="hover:text-orange-500">{settings.phone}</a>
+                  </p>
+                )}
+                {settings?.email && (
+                  <p>
+                    <a href={`mailto:${settings.email}`} className="hover:text-orange-500">{settings.email}</a>
+                  </p>
+                )}
               </address>
             </div>
           </div>
 
           <div className="pt-8 border-t border-gray-800 flex flex-col md:flex-row justify-between items-center gap-4">
             <p className="text-gray-500 text-sm">
-              © 2024 MobileHub Delhi. All rights reserved.
+              © {new Date().getFullYear()} {storeName}. All rights reserved.
             </p>
             <p className="text-gray-600 text-xs">
-              Built with ❤️ for Delhi
+              Powered by CRM Platform
             </p>
           </div>
         </div>

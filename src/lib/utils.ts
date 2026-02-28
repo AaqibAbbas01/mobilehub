@@ -1,4 +1,4 @@
-// Utility functions for MobileHub Delhi
+// Utility functions for CRM Platform
 
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -34,13 +34,13 @@ export function formatPhoneNumber(phone: string): string {
   return phone;
 }
 
-// Generate order number
-export function generateOrderNumber(): string {
+// Generate order number — accepts an optional prefix (defaults to 'OR' for generic installs)
+export function generateOrderNumber(prefix: string = 'OR'): string {
   const date = new Date();
   const year = date.getFullYear().toString().slice(-2);
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
   const random = Math.random().toString(36).substring(2, 6).toUpperCase();
-  return `MH${year}${month}${random}`;
+  return `${prefix}${year}${month}${random}`;
 }
 
 // Get condition badge color

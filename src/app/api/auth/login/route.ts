@@ -76,17 +76,18 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // Fallback: Check environment variables (for backward compatibility)
+  // Fallback: Check environment variables (for backward compatibility / initial setup)
   const envUsername = process.env.NEXT_PUBLIC_ADMIN_USERNAME || "admin";
-  const envPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || "mobilehub@123";
+  const envPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD;
 
-  if (username === envUsername && password === envPassword) {
+  // Only allow env-var fallback if NEXT_PUBLIC_ADMIN_PASSWORD is explicitly set
+  if (envPassword && username === envUsername && password === envPassword) {
     return NextResponse.json({
       success: true,
       user: {
         id: "env-admin",
         username: envUsername,
-        email: "admin@mobilehub.delhi",
+        email: process.env.ADMIN_EMAIL || "admin@example.com",
         full_name: "Admin (Legacy)",
         role: "super_admin",
         permissions: {

@@ -5,14 +5,9 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { 
   ArrowLeft, 
-  Upload, 
-  Smartphone,
+  Package,
   Battery,
-  Camera,
-  Cpu,
-  HardDrive,
   Save,
-  X,
   Loader2,
   CheckCircle,
   AlertCircle
@@ -29,9 +24,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { POPULAR_BRANDS } from "@/lib/utils";
 import { CloudinaryUpload } from "@/components/cloudinary-upload";
 import { CustomFieldsForm } from "@/components/custom-fields-form";
+import { useBusiness } from "@/contexts/BusinessContext";
 
 interface FieldConfig {
   field_name: string;
@@ -48,10 +43,20 @@ const conditions = [
   { value: "fair", label: "Fair", description: "Significant wear, works perfectly" },
 ];
 
-const storageOptions = ["64GB", "128GB", "256GB", "512GB", "1TB"];
-
 export default function AddPhonePage() {
   const router = useRouter();
+  const biz = useBusiness();
+
+  // Derived labels from business config
+  const productSingular = biz.product_name_singular ?? "Item";
+  const categories = (biz.primary_categories as string[]) ?? [];
+  const categoryLabel = biz.category_label ?? "Category";
+  const subcategoryLabel = biz.subcategory_label ?? "Model";
+  const variantLabel = biz.variant_label ?? "Variant";
+  const identifierLabel = biz.identifier_label ?? "ID";
+  const showBatteryHealth = biz.use_battery_health ?? false;
+  const showCondition = biz.use_condition_grades ?? true;
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<"idle" | "success" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
@@ -178,8 +183,8 @@ export default function AddPhonePage() {
           </Button>
         </Link>
         <div>
-          <h1 className="text-3xl font-bold">Add New Phone</h1>
-          <p className="text-gray-500 mt-1">Add a new device to your inventory</p>
+          <h1 className="text-3xl font-bold">Add New {productSingular}</h1>
+          <p className="text-gray-500 mt-1">Add a new {productSingular.toLowerCase()} to your inventory</p>
         </div>
       </div>
 
@@ -190,7 +195,7 @@ export default function AddPhonePage() {
             {/* Basic Info */}
             <div className="glass-card rounded-2xl p-6">
               <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-                <Smartphone className="w-5 h-5 text-orange-500" />
+                <Package className="w-5 h-5 text-orange-500" />
                 Basic Information
               </h2>
               
@@ -198,13 +203,13 @@ export default function AddPhonePage() {
                 {isVisible("name") && (
                   <div className="sm:col-span-2">
                     <Label className="text-gray-400 mb-2 block">
-                      {getLabel("name", "Phone Name")}
+                      {getLabel("name", `${productSingular} Name`)}
                       {isRequired("name") && <span className="text-red-500 ml-1">*</span>}
                     </Label>
                     <Input
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="e.g., iPhone 15 Pro Max"
+                      placeholder={`e.g., ${productSingular} name`}
                       className="bg-white/5 border-gray-800 rounded-xl h-12"
                       required={isRequired("name")}
                     />
@@ -214,16 +219,16 @@ export default function AddPhonePage() {
                 {isVisible("brand") && (
                   <div>
                     <Label className="text-gray-400 mb-2 block">
-                      {getLabel("brand", "Brand")}
+                      {getLabel("brand", categoryLabel)}
                       {isRequired("brand") && <span className="text-red-500 ml-1">*</span>}
                     </Label>
                     <Select value={formData.brand} onValueChange={(v) => setFormData({ ...formData, brand: v })}>
                       <SelectTrigger className="bg-white/5 border-gray-800 rounded-xl h-12">
-                        <SelectValue placeholder="Select brand" />
+                        <SelectValue placeholder={`Select ${categoryLabel.toLowerCase()}`} />
                       </SelectTrigger>
                       <SelectContent className="bg-gray-900 border-gray-800">
-                        {POPULAR_BRANDS.map((brand) => (
-                          <SelectItem key={brand} value={brand}>{brand}</SelectItem>
+                        {categories.map((cat) => (
+                          <SelectItem key={cat} value={cat}>{cat}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -233,13 +238,13 @@ export default function AddPhonePage() {
                 {isVisible("model") && (
                   <div>
                     <Label className="text-gray-400 mb-2 block">
-                      {getLabel("model", "Model Number")}
+                      {getLabel("model", subcategoryLabel)}
                       {isRequired("model") && <span className="text-red-500 ml-1">*</span>}
                     </Label>
                     <Input
                       value={formData.model}
                       onChange={(e) => setFormData({ ...formData, model: e.target.value })}
-                      placeholder="e.g., A2849"
+                      placeholder={`e.g., ${subcategoryLabel}`}
                       className="bg-white/5 border-gray-800 rounded-xl h-12"
                       required={isRequired("model")}
                     />
@@ -249,19 +254,16 @@ export default function AddPhonePage() {
                 {isVisible("storage") && (
                   <div>
                     <Label className="text-gray-400 mb-2 block">
-                      {getLabel("storage", "Storage")}
+                      {getLabel("storage", variantLabel)}
                       {isRequired("storage") && <span className="text-red-500 ml-1">*</span>}
                     </Label>
-                    <Select value={formData.storage} onValueChange={(v) => setFormData({ ...formData, storage: v })}>
-                      <SelectTrigger className="bg-white/5 border-gray-800 rounded-xl h-12">
-                        <SelectValue placeholder="Select storage" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-gray-900 border-gray-800">
-                        {storageOptions.map((storage) => (
-                          <SelectItem key={storage} value={storage}>{storage}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Input
+                      value={formData.storage}
+                      onChange={(e) => setFormData({ ...formData, storage: e.target.value })}
+                      placeholder={`e.g., ${variantLabel}`}
+                      className="bg-white/5 border-gray-800 rounded-xl h-12"
+                      required={isRequired("storage")}
+                    />
                   </div>
                 )}
 
@@ -284,13 +286,13 @@ export default function AddPhonePage() {
                 {isVisible("imei") && (
                   <div>
                     <Label className="text-gray-400 mb-2 block">
-                      {getLabel("imei", "IMEI Number")}
+                      {getLabel("imei", identifierLabel)}
                       {isRequired("imei") && <span className="text-red-500 ml-1">*</span>}
                     </Label>
                     <Input
                       value={formData.imei}
                       onChange={(e) => setFormData({ ...formData, imei: e.target.value })}
-                      placeholder="15-digit IMEI"
+                      placeholder={identifierLabel}
                       className="bg-white/5 border-gray-800 rounded-xl h-12"
                       required={isRequired("imei")}
                     />
@@ -317,7 +319,7 @@ export default function AddPhonePage() {
             </div>
 
             {/* Condition */}
-            {(isVisible("condition") || isVisible("batteryHealth")) && (
+            {(showCondition || showBatteryHealth) && (isVisible("condition") || isVisible("batteryHealth")) && (
             <div className="glass-card rounded-2xl p-6">
               <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
                 <Battery className="w-5 h-5 text-green-500" />
@@ -325,7 +327,7 @@ export default function AddPhonePage() {
               </h2>
               
               <div className="space-y-6">
-                {isVisible("condition") && (
+                {showCondition && isVisible("condition") && (
                 <div>
                   <Label className="text-gray-400 mb-3 block">
                     {getLabel("condition", "Device Condition")}
@@ -351,10 +353,10 @@ export default function AddPhonePage() {
                 </div>
                 )}
 
-                {isVisible("batteryHealth") && (
+                {showBatteryHealth && isVisible("batteryHealth") && (
                 <div>
                   <Label className="text-gray-400 mb-2 block">
-                    {getLabel("batteryHealth", "Battery Health (%)")}
+                    {getLabel("batteryHealth", "Battery Health (%)")}  
                     {isRequired("batteryHealth") && <span className="text-red-500 ml-1">*</span>}
                   </Label>
                   <Input
@@ -448,7 +450,7 @@ export default function AddPhonePage() {
               <Textarea
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Add a detailed description of the phone's condition, included accessories, and any special notes..."
+                placeholder={`Add a detailed description of the ${productSingular.toLowerCase()}'s condition, included accessories, and any special notes...`}
                 className="bg-white/5 border-gray-800 rounded-xl min-h-[150px] resize-none"
                 required={isRequired("description")}
               />
@@ -483,12 +485,12 @@ export default function AddPhonePage() {
               
               <div className="space-y-3">
                 <div className="w-full aspect-square rounded-xl bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-6xl">
-                  📱
+                  �
                 </div>
                 
                 <div>
-                  <p className="font-bold">{formData.name || "Phone Name"}</p>
-                  <p className="text-sm text-gray-500">{formData.brand || "Brand"} • {formData.storage || "Storage"}</p>
+                  <p className="font-bold">{formData.name || `${productSingular} Name`}</p>
+                  <p className="text-sm text-gray-500">{formData.brand || categoryLabel} • {formData.storage || variantLabel}</p>
                 </div>
 
                 <div className="flex items-baseline gap-2">
@@ -521,7 +523,7 @@ export default function AddPhonePage() {
             {submitStatus === "success" && (
               <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/30 flex items-center gap-3">
                 <CheckCircle className="w-5 h-5 text-green-500 shrink-0" />
-                <p className="text-green-500 text-sm">Phone added successfully! Redirecting...</p>
+                <p className="text-green-500 text-sm">{productSingular} added successfully! Redirecting...</p>
               </div>
             )}
 
@@ -535,7 +537,7 @@ export default function AddPhonePage() {
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Adding Phone...
+                    Adding {productSingular}...
                   </>
                 ) : submitStatus === "success" ? (
                   <>
@@ -545,7 +547,7 @@ export default function AddPhonePage() {
                 ) : (
                   <>
                     <Save className="w-5 h-5 mr-2" />
-                    Save Phone
+                    Save {productSingular}
                   </>
                 )}
               </Button>

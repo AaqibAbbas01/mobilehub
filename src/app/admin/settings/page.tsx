@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
+import {
   Store,
   Bell,
   MessageSquare,
@@ -43,7 +43,12 @@ import {
   Circle,
   Square,
   RectangleHorizontal,
+  Building2,
+  Layers,
+  ExternalLink,
+  ChevronRight,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,6 +59,8 @@ import { toast } from "sonner";
 import { CloudinaryUpload } from "@/components/cloudinary-upload";
 import { ColorPicker } from "@/components/ui/color-picker";
 import { ThemeConfig, ThemePreset, defaultThemeConfig } from "@/contexts/ThemeContext";
+import { useBusinessConfig, BusinessConfig } from "@/contexts/BusinessContext";
+import { BUSINESS_TEMPLATES } from "@/lib/business-templates";
 import {
   Dialog,
   DialogContent,
@@ -161,9 +168,11 @@ const defaultSettings: Settings = {
 };
 
 const tabs = [
+  { id: "business", label: "Business Profile", icon: Building2 },
   { id: "store", label: "Store Info", icon: Store },
   { id: "appearance", label: "Appearance", icon: Palette },
   { id: "team", label: "Team", icon: Users },
+  { id: "profiles", label: "Profiles", icon: Layers },
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "whatsapp", label: "WhatsApp", icon: MessageSquare },
   { id: "integrations", label: "Integrations", icon: Globe },
@@ -694,11 +703,229 @@ function TeamManagement() {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ProfilesTab component
+// ─────────────────────────────────────────────────────────────────────────────
+interface ProfileSummaryItem {
+  id: string;
+  business_type: string;
+  display_name?: string;
+  product_name_plural: string;
+  order_prefix: string;
+  setup_completed: boolean;
+  created_at: string;
+}
+
+function ProfilesTab({
+  profiles,
+  activeProfileId,
+  onSwitch,
+  onCreateNew,
+}: {
+  profiles: ProfileSummaryItem[];
+  activeProfileId?: string;
+  onSwitch: (id: string) => Promise<void>;
+  onCreateNew: () => void;
+}) {
+  const [switching, setSwitching] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
+  const handleSwitch = async (id: string) => {
+    if (id === activeProfileId) return;
+    setSwitching(id);
+    try {
+      await onSwitch(id);
+      toast.success("Switched profile");
+    } catch {
+      toast.error("Failed to switch profile");
+    } finally {
+      setSwitching(null);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (profiles.length <= 1) {
+      toast.error("Cannot delete the only profile");
+      return;
+    }
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/profiles/${id}`, { method: "DELETE" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Delete failed");
+      toast.success("Profile deleted");
+      // if deleted the active one, switch to first remaining
+      if (id === activeProfileId) {
+        const remaining = profiles.find((p) => p.id !== id);
+        if (remaining) await onSwitch(remaining.id);
+      } else {
+        window.location.reload();
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to delete");
+    } finally {
+      setDeletingId(null);
+      setConfirmDelete(null);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="glass-card rounded-2xl p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Layers className="w-5 h-5 text-orange-500" />
+              Business Profiles
+            </h2>
+            <p className="text-sm text-gray-400 mt-1">
+              Each profile is a completely isolated data silo — separate inventory, orders, customers and settings.
+            </p>
+          </div>
+          <Button
+            onClick={onCreateNew}
+            className="bg-orange-500 hover:bg-orange-600 text-white gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            New Profile
+          </Button>
+        </div>
+
+        {profiles.length === 0 ? (
+          <div className="text-center py-10 text-gray-500">No profiles found.</div>
+        ) : (
+          <div className="space-y-3">
+            {profiles.map((profile) => {
+              const isActive = profile.id === activeProfileId;
+              return (
+                <div
+                  key={profile.id}
+                  className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
+                    isActive
+                      ? "border-orange-500/50 bg-orange-500/8"
+                      : "border-gray-800 bg-white/3 hover:border-gray-700"
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <div
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg font-bold border ${
+                        isActive ? "border-orange-500/40 bg-orange-500/15 text-orange-400" : "border-gray-700 bg-white/5 text-gray-400"
+                      }`}
+                    >
+                      {profile.business_type?.charAt(0).toUpperCase() ?? "B"}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-white">
+                          {profile.display_name || profile.product_name_plural}
+                        </span>
+                        {isActive && (
+                          <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30 text-xs">
+                            Active
+                          </Badge>
+                        )}
+                        {!profile.setup_completed && (
+                          <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30 text-xs">
+                            Setup incomplete
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 mt-0.5">
+                        <span className="text-xs text-gray-500 capitalize">{profile.business_type?.replace(/_/g, " ")}</span>
+                        <span className="text-gray-700">·</span>
+                        <span className="text-xs text-gray-500">{profile.product_name_plural}</span>
+                        <span className="text-gray-700">·</span>
+                        <span className="text-xs text-gray-500">Prefix: {profile.order_prefix}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    {!isActive && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-gray-700 hover:border-orange-500/50 text-gray-300 hover:text-orange-400 text-xs gap-1.5"
+                        onClick={() => handleSwitch(profile.id)}
+                        disabled={switching === profile.id}
+                      >
+                        {switching === profile.id ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <ChevronRight className="w-3 h-3" />
+                        )}
+                        Switch
+                      </Button>
+                    )}
+
+                    {/* Delete — only if >1 profile and not active */}
+                    {profiles.length > 1 && !isActive && (
+                      confirmDelete === profile.id ? (
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            className="bg-red-500/20 hover:bg-red-500/30 text-red-400 border border-red-500/30 text-xs h-8 px-2"
+                            onClick={() => handleDelete(profile.id)}
+                            disabled={deletingId === profile.id}
+                          >
+                            {deletingId === profile.id ? <Loader2 className="w-3 h-3 animate-spin" /> : "Confirm"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-gray-400 h-8 px-2"
+                            onClick={() => setConfirmDelete(null)}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-gray-600 hover:text-red-400 h-8 px-2"
+                          onClick={() => setConfirmDelete(profile.id)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      )
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="glass-card rounded-2xl p-5">
+        <h3 className="text-sm font-semibold text-gray-300 mb-2 flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-orange-400" />
+          About profiles
+        </h3>
+        <ul className="text-xs text-gray-400 space-y-1.5">
+          <li>• Each profile has its own <strong className="text-gray-300">inventory, orders, customers, inquiries and custom fields</strong>.</li>
+          <li>• Switching profiles changes which data you see across the entire CRM.</li>
+          <li>• Creating a new profile will launch the setup wizard.</li>
+          <li>• Profiles share the same login credentials — manage team access from the <strong className="text-gray-300">Team</strong> tab.</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState("store");
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState("business");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
+
+  // Business config state
+  const { config: bizConfig, updateConfig: updateBizConfig, refreshConfig, profiles, switchProfile } = useBusinessConfig();
+  const [bizState, setBizState] = useState<Partial<BusinessConfig>>({});
+  const [savingBiz, setSavingBiz] = useState(false);
   
   // Password change state
   const [currentPassword, setCurrentPassword] = useState("");
@@ -726,6 +953,11 @@ export default function SettingsPage() {
   const [themePresets, setThemePresets] = useState<ThemePreset[]>([]);
   const [loadingTheme, setLoadingTheme] = useState(false);
   const [savingTheme, setSavingTheme] = useState(false);
+
+  // Sync bizState from context
+  useEffect(() => {
+    setBizState(bizConfig);
+  }, [bizConfig]);
 
   // Load settings on mount
   useEffect(() => {
@@ -1212,6 +1444,260 @@ export default function SettingsPage() {
           </button>
         ))}
       </div>
+
+      {/* Business Profile Tab */}
+      {activeTab === "business" && (
+        <div className="space-y-6">
+          {/* Header */}
+          <div className="glass-card rounded-2xl p-6">
+            <h2 className="text-lg font-semibold flex items-center gap-2 mb-1">
+              <Building2 className="w-5 h-5 text-orange-500" />
+              Business Profile
+            </h2>
+            <p className="text-sm text-gray-400">
+              Choose your business type and customise the terminology used throughout the CRM and public website.
+            </p>
+          </div>
+
+          {/* Template Selector */}
+          <div className="glass-card rounded-2xl p-6">
+            <h3 className="font-semibold mb-1">Business Type</h3>
+            <p className="text-sm text-gray-400 mb-4">
+              Switching templates will update all default labels. Your custom data is never deleted.
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {BUSINESS_TEMPLATES.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => {
+                    setBizState((prev) => ({
+                      ...prev,
+                      business_type: t.id,
+                      product_name_singular: t.product_name_singular,
+                      product_name_plural: t.product_name_plural,
+                      identifier_label: t.identifier_label,
+                      identifier_2_label: t.identifier_2_label,
+                      identifier_required: t.identifier_required,
+                      identifier_unique: t.identifier_unique,
+                      category_label: t.category_label,
+                      subcategory_label: t.subcategory_label,
+                      variant_label: t.variant_label,
+                      seller_label: t.seller_label,
+                      use_condition_grades: t.use_condition_grades,
+                      condition_labels: t.condition_labels,
+                      use_battery_health: t.use_battery_health,
+                      use_functional_tests: t.use_functional_tests,
+                      enable_imei_check: t.enable_imei_check,
+                      primary_categories: t.primary_categories,
+                      whatsapp_cta_label: t.whatsapp_cta_label,
+                      whatsapp_inquiry_template: t.whatsapp_inquiry_template,
+                      order_prefix: t.order_prefix,
+                      gst_enabled: t.gst_enabled,
+                      gst_rate: t.gst_rate,
+                      gst_label: t.gst_label,
+                      enable_leads_module: t.enable_leads_module,
+                      enable_marketing_module: t.enable_marketing_module,
+                      enable_seller_tracking: t.enable_seller_tracking,
+                      enable_whatsapp_ai: t.enable_whatsapp_ai,
+                    }));
+                  }}
+                  className={`text-left p-4 rounded-xl border transition-all ${
+                    (bizState.business_type || bizConfig.business_type) === t.id
+                      ? "border-orange-500 bg-orange-500/10"
+                      : "border-gray-800 bg-white/3 hover:border-gray-600"
+                  }`}
+                >
+                  <div className="text-2xl mb-2">{t.icon}</div>
+                  <div className="text-sm font-medium">{t.name}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Terminology */}
+          <div className="glass-card rounded-2xl p-6">
+            <h3 className="font-semibold mb-4">Product Terminology</h3>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {([
+                ["product_name_singular", "Product name (singular)", "e.g. Phone, Laptop, Item"],
+                ["product_name_plural",   "Product name (plural)",   "e.g. Phones, Laptops, Items"],
+                ["category_label",        "Primary category label",   "e.g. Brand, Category, Make"],
+                ["subcategory_label",     "Secondary category label", "e.g. Model, Style, Type"],
+                ["variant_label",         "Variant label",            "e.g. Storage/RAM, Size/Colour"],
+                ["seller_label",          "Seller / supplier label",  "e.g. Seller, Supplier, Owner"],
+                ["identifier_label",      "Unique identifier label",  "e.g. IMEI, Serial No., SKU"],
+                ["identifier_2_label",    "Secondary ID label",       "e.g. IMEI 2, Barcode"],
+                ["order_prefix",          "Order number prefix",      "e.g. MH → MH2602XXXX"],
+              ] as [keyof BusinessConfig, string, string][]).map(([key, label, placeholder]) => (
+                <div key={key}>
+                  <Label className="text-xs text-gray-400">{label}</Label>
+                  <Input
+                    value={(bizState[key] as string) ?? ""}
+                    onChange={(e) => setBizState((p) => ({ ...p, [key]: e.target.value }))}
+                    placeholder={placeholder}
+                    className="mt-1 bg-white/5 border-gray-800 rounded-xl text-sm"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Feature Flags */}
+          <div className="glass-card rounded-2xl p-6">
+            <h3 className="font-semibold mb-4">Features</h3>
+            <div className="grid sm:grid-cols-2 gap-4">
+              {([
+                ["use_condition_grades",      "Show condition grades (A+ to D)"],
+                ["use_battery_health",        "Show battery health %"],
+                ["use_functional_tests",      "Show functional test checklist"],
+                ["enable_imei_check",         "Enable IMEI / blacklist check"],
+                ["enable_leads_module",       "Enable Leads module"],
+                ["enable_marketing_module",   "Enable Marketing / Campaigns module"],
+                ["enable_seller_tracking",    "Enable Seller / Supplier tracking"],
+                ["enable_whatsapp_ai",        "Enable WhatsApp AI auto-reply"],
+                ["gst_enabled",               "Enable GST / Tax on invoices"],
+              ] as [keyof BusinessConfig, string][]).map(([key, label]) => (
+                <div key={key} className="flex items-center justify-between p-3 bg-white/3 rounded-xl">
+                  <span className="text-sm">{label}</span>
+                  <Switch
+                    checked={!!(bizState[key] ?? bizConfig[key])}
+                    onCheckedChange={(v) => setBizState((p) => ({ ...p, [key]: v }))}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* GST rate */}
+          {(bizState.gst_enabled ?? bizConfig.gst_enabled) && (
+            <div className="glass-card rounded-2xl p-6">
+              <h3 className="font-semibold mb-4">Tax / GST Settings</h3>
+              <div className="grid sm:grid-cols-3 gap-4">
+                <div>
+                  <Label className="text-xs text-gray-400">Tax label</Label>
+                  <Input
+                    value={(bizState.gst_label as string) ?? bizConfig.gst_label}
+                    onChange={(e) => setBizState((p) => ({ ...p, gst_label: e.target.value }))}
+                    placeholder="GST"
+                    className="mt-1 bg-white/5 border-gray-800 rounded-xl"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-gray-400">Tax Rate (%)</Label>
+                  <Input
+                    type="number"
+                    value={(bizState.gst_rate as number) ?? bizConfig.gst_rate}
+                    onChange={(e) => setBizState((p) => ({ ...p, gst_rate: parseFloat(e.target.value) }))}
+                    placeholder="18"
+                    className="mt-1 bg-white/5 border-gray-800 rounded-xl"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Primary Categories */}
+          <div className="glass-card rounded-2xl p-6">
+            <h3 className="font-semibold mb-1">Primary Categories</h3>
+            <p className="text-sm text-gray-400 mb-4">
+              These appear as filter options and quick-select chips. Enter one per line.
+            </p>
+            <textarea
+              value={((bizState.primary_categories ?? bizConfig.primary_categories) as string[]).join("\n")}
+              onChange={(e) =>
+                setBizState((p) => ({
+                  ...p,
+                  primary_categories: e.target.value.split("\n").map((s) => s.trim()).filter(Boolean),
+                }))
+              }
+              rows={6}
+              className="w-full bg-white/5 border border-gray-800 rounded-xl px-3 py-2 text-sm text-white resize-none focus:outline-none focus:border-orange-500/50"
+              placeholder={"Apple\nSamsung\nOnePlus\n..."}
+            />
+          </div>
+
+          {/* WhatsApp inquiry template */}
+          <div className="glass-card rounded-2xl p-6">
+            <h3 className="font-semibold mb-1">WhatsApp Inquiry Template</h3>
+            <p className="text-sm text-gray-400 mb-4">
+              Variables: <code className="text-orange-400">{"{{category}}"}</code>, <code className="text-orange-400">{"{{subcategory}}"}</code>, <code className="text-orange-400">{"{{variant}}"}</code>, <code className="text-orange-400">{"{{price}}"}</code>
+            </p>
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs text-gray-400">Button label</Label>
+                <Input
+                  value={(bizState.whatsapp_cta_label as string) ?? bizConfig.whatsapp_cta_label}
+                  onChange={(e) => setBizState((p) => ({ ...p, whatsapp_cta_label: e.target.value }))}
+                  className="mt-1 bg-white/5 border-gray-800 rounded-xl"
+                />
+              </div>
+              <div>
+                <Label className="text-xs text-gray-400">Message template</Label>
+                <textarea
+                  value={(bizState.whatsapp_inquiry_template as string) ?? bizConfig.whatsapp_inquiry_template}
+                  onChange={(e) => setBizState((p) => ({ ...p, whatsapp_inquiry_template: e.target.value }))}
+                  rows={3}
+                  className="w-full mt-1 bg-white/5 border border-gray-800 rounded-xl px-3 py-2 text-sm text-white resize-none focus:outline-none focus:border-orange-500/50"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Hero Stats */}
+          <div className="glass-card rounded-2xl p-6">
+            <h3 className="font-semibold mb-4">Public Website Hero Stats</h3>
+            <div className="grid sm:grid-cols-2 gap-4">
+              {([1, 2, 3, 4] as const).map((n) => (
+                <div key={n} className="flex gap-3">
+                  <div className="flex-1">
+                    <Label className="text-xs text-gray-400">Stat {n} value</Label>
+                    <Input
+                      value={(bizState[`hero_stat_${n}_value` as keyof BusinessConfig] as string) ?? ""}
+                      onChange={(e) => setBizState((p) => ({ ...p, [`hero_stat_${n}_value`]: e.target.value }))}
+                      placeholder="e.g. 15,000+"
+                      className="mt-1 bg-white/5 border-gray-800 rounded-xl"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <Label className="text-xs text-gray-400">Stat {n} label</Label>
+                    <Input
+                      value={(bizState[`hero_stat_${n}_label` as keyof BusinessConfig] as string) ?? ""}
+                      onChange={(e) => setBizState((p) => ({ ...p, [`hero_stat_${n}_label`]: e.target.value }))}
+                      placeholder="e.g. Phones Sold"
+                      className="mt-1 bg-white/5 border-gray-800 rounded-xl"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Save button */}
+          <div className="flex justify-end">
+            <Button
+              onClick={async () => {
+                setSavingBiz(true);
+                const ok = await updateBizConfig(bizState);
+                if (ok) {
+                  toast.success("Business profile saved!");
+                  await refreshConfig();
+                } else {
+                  toast.error("Failed to save business profile");
+                }
+                setSavingBiz(false);
+              }}
+              disabled={savingBiz}
+              className="btn-futuristic rounded-xl"
+            >
+              {savingBiz ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving…</>
+              ) : (
+                <><Save className="w-4 h-4 mr-2" /> Save Business Profile</>
+              )}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Store Info Tab */}
       {activeTab === "store" && (
@@ -2241,6 +2727,18 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Profiles Tab */}
+      {activeTab === "profiles" && (
+        <ProfilesTab
+          profiles={profiles}
+          activeProfileId={bizConfig.id}
+          onSwitch={async (id) => {
+            await switchProfile(id);
+          }}
+          onCreateNew={() => router.push("/admin/setup?new=1")}
+        />
       )}
 
       {/* Custom Fields Tab */}

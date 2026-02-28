@@ -1,14 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Lock, User, Smartphone, AlertCircle } from "lucide-react";
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { signIn } from "next-auth/react";
+import { Eye, EyeOff, Lock, User, Store, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export default function AdminLoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get("callbackUrl") || "/admin";
+
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -21,34 +25,31 @@ export default function AdminLoginPage() {
     setIsLoading(true);
 
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+      const result = await signIn("credentials", {
+        username,
+        password,
+        redirect: false,
       });
 
-      const data = await res.json();
-
-      if (data.success && data.user) {
-        // Store user session in localStorage
-        localStorage.setItem("admin_session", JSON.stringify({
-          ...data.user,
-          loginTime: new Date().toISOString(),
-        }));
-        router.push("/admin");
-      } else {
-        setError(data.error || "Invalid username or password");
+      if (result?.error) {
+        setError("Invalid username or password");
+        return;
       }
+
+      // On success: set the active profile cookie then redirect
+      await fetch("/api/profiles/init", { method: "POST" });
+      router.push(callbackUrl);
+      router.refresh();
     } catch {
       setError("Login failed. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 flex items-center justify-center p-4">
-      {/* Background Pattern */}
+      {/* Background blobs */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 -left-20 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl" />
         <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
@@ -58,32 +59,28 @@ export default function AdminLoginPage() {
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-orange-500 to-pink-600 mb-4">
-            <Smartphone className="w-10 h-10 text-white" />
+            <Store className="w-10 h-10 text-white" />
           </div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-orange-500 to-pink-600 bg-clip-text text-transparent">
-            MobileHub Delhi
+            Business CRM
           </h1>
           <p className="text-gray-500 mt-2">Admin Panel</p>
         </div>
 
-        {/* Login Card */}
+        {/* Card */}
         <div className="glass-card rounded-2xl p-8 border border-gray-800/50">
           <h2 className="text-2xl font-bold text-center mb-6">Welcome Back</h2>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Error Message */}
             {error && (
               <div className="flex items-center gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-500 text-sm">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <AlertCircle className="w-4 h-4 shrink-0" />
                 {error}
               </div>
             )}
 
-            {/* Username */}
             <div className="space-y-2">
-              <Label htmlFor="username" className="text-gray-400">
-                Username
-              </Label>
+              <Label htmlFor="username" className="text-gray-400">Username</Label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                 <Input
@@ -98,11 +95,8 @@ export default function AdminLoginPage() {
               </div>
             </div>
 
-            {/* Password */}
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-gray-400">
-                Password
-              </Label>
+              <Label htmlFor="password" className="text-gray-400">Password</Label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
                 <Input
@@ -119,16 +113,11 @@ export default function AdminLoginPage() {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300"
                 >
-                  {showPassword ? (
-                    <EyeOff className="w-5 h-5" />
-                  ) : (
-                    <Eye className="w-5 h-5" />
-                  )}
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
             </div>
 
-            {/* Submit Button */}
             <Button
               type="submit"
               disabled={isLoading}
@@ -137,26 +126,21 @@ export default function AdminLoginPage() {
               {isLoading ? (
                 <div className="flex items-center gap-2">
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Signing in...
+                  Signing in…
                 </div>
-              ) : (
-                "Sign In"
-              )}
+              ) : "Sign In"}
             </Button>
           </form>
-
-          {/* Footer */}
-          <div className="mt-6 text-center text-sm text-gray-500">
-            <p>Nehru Place, New Delhi</p>
-            <p className="mt-1">📞 +91 99107 24940</p>
-          </div>
-        </div>
-
-        {/* Demo Credentials Hint (Remove in production) */}
-        <div className="mt-4 text-center text-xs text-gray-600">
-          <p>Default: admin / admin123</p>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function AdminLoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }

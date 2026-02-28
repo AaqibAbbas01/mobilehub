@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { 
-  Phone, 
   MessageCircle, 
   MapPin, 
   Clock, 
   Mail,
+  Phone as PhoneIcon,
   Send,
   ChevronDown,
   ChevronUp,
@@ -15,78 +15,26 @@ import {
   Navigation,
   Instagram,
   Facebook,
-  Youtube
+  Youtube,
+  Store
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { getWhatsAppLink } from "@/lib/utils";
+import { useBusiness } from "@/contexts/BusinessContext";
 
-const WHATSAPP_NUMBER = "919910724940";
-
-const contactMethods = [
-  {
-    icon: MessageCircle,
-    title: "WhatsApp",
-    value: "+91 99107 24940",
-    description: "Fastest response • Available 24/7",
-    action: getWhatsAppLink(WHATSAPP_NUMBER),
-    gradient: "from-green-500 to-emerald-600",
-    recommended: true,
-  },
-  {
-    icon: Phone,
-    title: "Phone",
-    value: "+91 99107 24940",
-    description: "Call us directly • 10 AM - 9 PM",
-    action: "tel:+919910724940",
-    gradient: "from-blue-500 to-cyan-600",
-  },
-  {
-    icon: Mail,
-    title: "Email",
-    value: "hello@mobilehub.in",
-    description: "For business inquiries",
-    action: "mailto:hello@mobilehub.in",
-    gradient: "from-purple-500 to-pink-600",
-  },
-  {
-    icon: MapPin,
-    title: "Visit Us",
-    value: "Gaffar Market, Karol Bagh",
-    description: "New Delhi - 110005",
-    action: "https://maps.google.com/?q=Gaffar+Market+Karol+Bagh+Delhi",
-    gradient: "from-orange-500 to-red-600",
-  },
-];
-
-const faqs = [
-  {
-    question: "Do you provide warranty on second-hand phones?",
-    answer: "Yes! We provide a 6-month warranty on all phones. This covers manufacturing defects and hardware issues. We also offer an extended warranty option for up to 12 months.",
-  },
-  {
-    question: "Can I check the phone before buying?",
-    answer: "Absolutely! We encourage you to visit our store in Gaffar Market and test the phone thoroughly. You can also video call us on WhatsApp for a live demo before purchase.",
-  },
-  {
-    question: "What payment methods do you accept?",
-    answer: "We accept all major payment methods including UPI (PhonePe, Google Pay, Paytm), bank transfer, credit/debit cards, and cash. EMI options are also available on select phones.",
-  },
-  {
-    question: "Do you buy old phones?",
-    answer: "Yes! We offer competitive prices for your old phones. Send us photos and details on WhatsApp for an instant quote. We also have exchange offers for upgrading your phone.",
-  },
-  {
-    question: "What is your return policy?",
-    answer: "We offer a 7-day return policy. If you're not satisfied with your purchase, you can return it within 7 days for a full refund or exchange (terms apply).",
-  },
-  {
-    question: "Do you deliver outside Delhi?",
-    answer: "Yes! We deliver across India. Shipping is free for orders above ₹25,000. For orders below that, a nominal shipping charge applies based on your location.",
-  },
-];
+interface Settings {
+  store_name?: string;
+  tagline?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  whatsapp_number?: string;
+  logo_url?: string;
+  business_hours?: string;
+}
 
 const businessHours = [
   { day: "Monday - Saturday", time: "10:00 AM - 9:00 PM" },
@@ -95,6 +43,8 @@ const businessHours = [
 ];
 
 export default function ContactPage() {
+  const biz = useBusiness();
+  const [settings, setSettings] = useState<Settings | null>(null);
   const [expandedFaq, setExpandedFaq] = useState<number | null>(0);
   const [formData, setFormData] = useState({
     name: "",
@@ -103,11 +53,86 @@ export default function ContactPage() {
     message: "",
   });
 
+  useEffect(() => {
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then(setSettings)
+      .catch(() => {});
+  }, []);
+
+  const storeName = settings?.store_name || biz.display_name || biz.name || "Our Store";
+  const address = settings?.address || "";
+  const phone = settings?.phone || "";
+  const email = settings?.email || "";
+  const whatsappNum = settings?.whatsapp_number || "919999999999";
+
+  const contactMethods = [
+    {
+      icon: MessageCircle,
+      title: "WhatsApp",
+      value: whatsappNum ? `+${whatsappNum}` : "Contact us",
+      description: "Fastest response • Available 24/7",
+      action: getWhatsAppLink(whatsappNum),
+      gradient: "from-green-500 to-emerald-600",
+      recommended: true,
+    },
+    ...(phone ? [{
+      icon: PhoneIcon,
+      title: "Phone",
+      value: phone,
+      description: "Call us directly • 10 AM - 9 PM",
+      action: `tel:${phone}`,
+      gradient: "from-blue-500 to-cyan-600",
+      recommended: false,
+    }] : []),
+    ...(email ? [{
+      icon: Mail,
+      title: "Email",
+      value: email,
+      description: "For business inquiries",
+      action: `mailto:${email}`,
+      gradient: "from-purple-500 to-pink-600",
+      recommended: false,
+    }] : []),
+    ...(address ? [{
+      icon: MapPin,
+      title: "Visit Us",
+      value: address.split(",")[0] || address,
+      description: address.split(",").slice(1).join(",").trim() || "",
+      action: `https://maps.google.com/?q=${encodeURIComponent(address)}`,
+      gradient: "from-orange-500 to-red-600",
+      recommended: false,
+    }] : []),
+  ];
+
+  // Use FAQs from business config, fallback to generic ones
+  const faqs = (biz.faqs && biz.faqs.length > 0) ? biz.faqs : [
+    {
+      question: `Do you provide warranty on ${biz.product_name_plural.toLowerCase()}?`,
+      answer: "Yes! We provide warranty on all our products. Please contact us for details on our warranty terms.",
+    },
+    {
+      question: `Can I check the ${biz.product_name_singular.toLowerCase()} before buying?`,
+      answer: "Absolutely! We encourage you to visit our store and inspect before purchasing. You can also request a video call for a live demo.",
+    },
+    {
+      question: "What payment methods do you accept?",
+      answer: "We accept all major payment methods including UPI, bank transfer, credit/debit cards, and cash.",
+    },
+    {
+      question: `Do you buy old ${biz.product_name_plural.toLowerCase()}?`,
+      answer: "Yes! We offer competitive prices. Contact us on WhatsApp with details for an instant quote.",
+    },
+    {
+      question: "What is your return policy?",
+      answer: "We offer a return policy. Please contact us for full details on terms and conditions.",
+    },
+  ];
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Open WhatsApp with the form data
     const message = `Hi! I'm ${formData.name}.%0A%0A${formData.message}%0A%0AContact: ${formData.phone}%0AEmail: ${formData.email}`;
-    window.open(getWhatsAppLink(WHATSAPP_NUMBER, message), "_blank");
+    window.open(getWhatsAppLink(whatsappNum, message), "_blank");
   };
 
   return (
@@ -123,23 +148,24 @@ export default function ContactPage() {
       <header className="sticky top-0 z-50 glass">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3">
-            <div className="bg-gradient-to-br from-orange-500 to-red-600 p-2 rounded-xl">
-              <Phone className="w-5 h-5 text-white" />
-            </div>
-            <span className="text-xl font-bold">
-              Mobile<span className="text-orange-500">Hub</span>
-            </span>
+            {settings?.logo_url ? (
+              <img src={settings.logo_url} alt={storeName} className="h-8 w-auto" />
+            ) : (
+              <div className="bg-gradient-to-br from-orange-500 to-red-600 p-2 rounded-xl">
+                <Store className="w-5 h-5 text-white" />
+              </div>
+            )}
+            <span className="text-xl font-bold">{storeName}</span>
           </Link>
           
           <nav className="hidden md:flex items-center gap-6">
             <Link href="/" className="text-gray-400 hover:text-white transition-colors">Home</Link>
-            <Link href="/phones" className="text-gray-400 hover:text-white transition-colors">All Phones</Link>
-            <Link href="/brands" className="text-gray-400 hover:text-white transition-colors">Brands</Link>
+            <Link href="/phones" className="text-gray-400 hover:text-white transition-colors">{biz.product_name_plural}</Link>
             <Link href="/about" className="text-gray-400 hover:text-white transition-colors">About</Link>
             <Link href="/contact" className="text-orange-500 font-medium">Contact</Link>
           </nav>
 
-          <a href={getWhatsAppLink(WHATSAPP_NUMBER)} target="_blank" rel="noopener noreferrer">
+          <a href={getWhatsAppLink(whatsappNum)} target="_blank" rel="noopener noreferrer">
             <Button className="btn-futuristic bg-gradient-to-r from-green-500 to-emerald-600 text-white border-0 rounded-full">
               <MessageCircle className="w-4 h-4 mr-2" />
               <span className="hidden sm:inline">WhatsApp</span>
@@ -159,7 +185,7 @@ export default function ContactPage() {
             Get in <span className="text-orange-500">Touch</span>
           </h1>
           <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-            Have a question? Want to buy a phone? Or just want to say hi? 
+            Have a question? Want to buy something? Or just want to say hi?
             We&apos;d love to hear from you!
           </p>
         </div>
@@ -173,7 +199,7 @@ export default function ContactPage() {
               <a
                 key={i}
                 href={method.action}
-                target={method.action.startsWith("http") ? "_blank" : undefined}
+                target={method.action.startsWith("http") || method.action.startsWith("https") ? "_blank" : undefined}
                 rel={method.action.startsWith("http") ? "noopener noreferrer" : undefined}
               >
                 <div className="glass-card rounded-2xl p-6 card-hover-effect h-full relative">
@@ -240,7 +266,7 @@ export default function ContactPage() {
                   <Textarea
                     value={formData.message}
                     onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                    placeholder="I'm interested in buying a phone..."
+                    placeholder={`I'm interested in...`}
                     className="bg-white/5 border-gray-800 rounded-xl min-h-[150px] resize-none"
                     required
                   />
@@ -258,25 +284,23 @@ export default function ContactPage() {
               </form>
             </div>
 
-            {/* Store Info & Map */}
+            {/* Store Info */}
             <div className="space-y-6">
-              {/* Store Details */}
               <div className="glass-card rounded-3xl p-8">
                 <h2 className="text-2xl font-bold mb-6">Visit Our Store</h2>
                 
                 <div className="space-y-4 mb-6">
-                  <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center flex-shrink-0">
-                      <MapPin className="w-5 h-5 text-orange-500" />
+                  {address && (
+                    <div className="flex items-start gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center flex-shrink-0">
+                        <MapPin className="w-5 h-5 text-orange-500" />
+                      </div>
+                      <div>
+                        <p className="font-semibold">{storeName}</p>
+                        <p className="text-gray-400 text-sm whitespace-pre-line">{address}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-semibold">MobileHub Delhi</p>
-                      <p className="text-gray-400 text-sm">
-                        Shop 42, Gaffar Market<br />
-                        Karol Bagh, New Delhi - 110005
-                      </p>
-                    </div>
-                  </div>
+                  )}
 
                   <div className="flex items-start gap-4">
                     <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center flex-shrink-0">
@@ -298,29 +322,18 @@ export default function ContactPage() {
                   </div>
                 </div>
 
-                <a 
-                  href="https://maps.google.com/?q=Gaffar+Market+Karol+Bagh+Delhi" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                >
-                  <Button className="w-full bg-white/5 hover:bg-white/10 border-0 py-6 rounded-xl">
-                    <Navigation className="w-5 h-5 mr-2 text-blue-500" />
-                    Get Directions
-                  </Button>
-                </a>
-              </div>
-
-              {/* Map */}
-              <div className="glass-card rounded-3xl overflow-hidden h-[300px]">
-                <iframe
-                  src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3501.5234!2d77.1892!3d28.6442!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x390d029f6c6a6c7d%3A0x123456789!2sGaffar%20Market%2C%20Karol%20Bagh%2C%20New%20Delhi!5e0!3m2!1sen!2sin!4v1234567890"
-                  width="100%"
-                  height="100%"
-                  style={{ border: 0, filter: "invert(90%) hue-rotate(180deg)" }}
-                  allowFullScreen
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                />
+                {address && (
+                  <a 
+                    href={`https://maps.google.com/?q=${encodeURIComponent(address)}`}
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                  >
+                    <Button className="w-full bg-white/5 hover:bg-white/10 border-0 py-6 rounded-xl">
+                      <Navigation className="w-5 h-5 mr-2 text-blue-500" />
+                      Get Directions
+                    </Button>
+                  </a>
+                )}
               </div>
 
               {/* Social Links */}
@@ -360,10 +373,7 @@ export default function ContactPage() {
 
           <div className="max-w-3xl mx-auto space-y-4">
             {faqs.map((faq, i) => (
-              <div
-                key={i}
-                className="glass-card rounded-2xl overflow-hidden"
-              >
+              <div key={i} className="glass-card rounded-2xl overflow-hidden">
                 <button
                   onClick={() => setExpandedFaq(expandedFaq === i ? null : i)}
                   className="w-full p-6 text-left flex items-center justify-between"
@@ -389,7 +399,7 @@ export default function ContactPage() {
       {/* Footer */}
       <footer className="relative py-12 border-t border-gray-800">
         <div className="container mx-auto px-4 text-center">
-          <p className="text-gray-500">© 2024 MobileHub Delhi. All rights reserved.</p>
+          <p className="text-gray-500">© {new Date().getFullYear()} {storeName}. All rights reserved.</p>
         </div>
       </footer>
     </div>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getProfileId } from "@/lib/profile";
 
 // GET all custom fields
 export async function GET(request: NextRequest) {
@@ -7,6 +8,7 @@ export async function GET(request: NextRequest) {
     const supabase = await createClient();
     const { searchParams } = new URL(request.url);
     const tableName = searchParams.get("table");
+    const profileId = getProfileId(request);
 
     let query = supabase
       .from("custom_fields")
@@ -15,6 +17,11 @@ export async function GET(request: NextRequest) {
 
     if (tableName) {
       query = query.eq("table_name", tableName);
+    }
+
+    // Each profile sees only its own custom fields
+    if (profileId) {
+      query = query.eq("profile_id", profileId);
     }
 
     const { data, error } = await query;
@@ -49,7 +56,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid table name" }, { status: 400 });
     }
 
-    // Create the custom field record
+    // Create the custom field record, scoped to active profile
+    const profileId = getProfileId(request);
     const { data, error } = await supabase
       .from("custom_fields")
       .insert({
@@ -59,7 +67,8 @@ export async function POST(request: NextRequest) {
         field_label: field_label || field_name,
         options: options || null,
         required: required || false,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        ...(profileId ? { profile_id: profileId } : {}),
       })
       .select()
       .single();
